@@ -206,3 +206,91 @@ else:
                         r_cols[i+1].write(row[col_name])
 
     # ... rest of the code ...
+elif menu == "Add New Patient":
+        # Keep your existing "Add New Patient" code here...
+        st.title("🩺 Cardiac Analysis")
+        # (Rest of your form logic from the original snippet)
+
+        # 1. FETCH EXISTING PATIENTS
+        existing_patients = db.get_patients(st.session_state.user_id)
+
+        # Create search labels like "John Smith | 0300-1234567"
+        patient_options = ["-- Register New Patient --"]
+        if not existing_patients.empty:
+            patient_options += (existing_patients['name'] + " | " + existing_patients['contact_no']).tolist()
+
+        search_selection = st.selectbox("Search Existing Patient or Select 'New'", patient_options)
+
+        with st.form("medical_form"):
+            st.subheader("Patient Identity")
+
+            if search_selection == "-- Register New Patient --":
+                col1, col2, col3 = st.columns(3)
+                p_name = col1.text_input("Full Name")
+                p_age = col2.number_input("Age", min_value=1, max_value=120, value=30)
+                p_contact = col3.text_input("Contact No (Unique ID)")
+                is_new_patient = True
+            else:
+                # Extract contact from the selection string "Name | Contact"
+                selected_contact = search_selection.split(" | ")[-1]
+                p_info = existing_patients[existing_patients['contact_no'] == selected_contact].iloc[0]
+
+                # Display info as read-only for confirmation
+                st.info(f"**Selected:** {p_info['name']} | **Age:** {p_info['age']} | **ID:** {p_info['id']}")
+                p_name, p_age, p_contact = p_info['name'], p_info['age'], p_info['contact_no']
+                p_id = p_info['id']
+                is_new_patient = False
+
+            st.subheader("Clinical Metrics")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                p_gender = st.selectbox("Gender", ["Male", "Female", "Other"])
+                cp = st.selectbox("Chest Pain Type", ["Typical Angina", "Atypical Angina", "Non-Anginal Pain", "Asymptomatic"])
+                rbp = st.number_input("Resting Blood Pressure", value=120)
+                chol = st.number_input("Cholesterol", value=200)
+                fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl", [0, 1])
+                restecg = st.selectbox("Resting ECG", ["Normal", "ST-T Wave Abnormality", "Left Ventricular Hypertrophy"])
+            with col_b:
+                mhr = st.number_input("Max Heart Rate", value=150)
+                eia = st.selectbox("Exercise Induced Angina", [0, 1])
+                st_depression = st.number_input("ST Depression", value=0.0)
+                st_slope = st.selectbox("ST Slope", ["Up", "Flat", "Down"])
+                major_vessels = st.number_input("Major Vessels (0-4)", min_value=0, max_value=4)
+                thal = st.selectbox("Thalassemia", ["Normal", "Fixed Defect", "Reversible Defect"])
+
+            if st.form_submit_button("Run Analysis & Save"):
+                # --- MAPPING LOGIC ---
+                gender_map = {"Male": 1, "Female": 0, "Other": 0}
+                cp_map = {"Typical Angina": 0, "Atypical Angina": 1, "Non-Anginal Pain": 2, "Asymptomatic": 3}
+                restecg_map = {"Normal": 0, "ST-T Wave Abnormality": 1, "Left Ventricular Hypertrophy": 2}
+                slope_map = {"Up": 0, "Flat": 1, "Down": 2}
+                thal_map = {"Normal": 1, "Fixed Defect": 2, "Reversible Defect": 3}
+
+                input_data = {
+                    "Age": p_age, "Gender": gender_map.get(p_gender),
+                    "ChestPainType": cp_map.get(cp), "RestingBloodPressure": rbp,
+                    "Cholesterol": chol, "FastingBloodSugar": fbs,
+                    "RestECG": restecg_map.get(restecg), "MaxHeartRate": mhr,
+                    "ExerciseInducedAngina": eia, "ST_Depression": st_depression,
+                    "ST_Slope": slope_map.get(st_slope), "MajorVessels": major_vessels,
+                    "Thalassemia": thal_map.get(thal, 0)
+                }
+
+                target, prob, cat, status = mh.predict_heart_risk(input_data)
+
+                if status == "Success":
+                    # --- SAVE LOGIC ---
+                    if is_new_patient:
+                        # 1. Check if contact exists to prevent error
+                        check_exist = existing_patients[existing_patients['contact_no'] == p_contact]
+                        if not check_exist.empty:
+                            st.warning("A patient with this contact already exists. Updating record for that patient instead.")
+                            p_id = check_exist.iloc[0]['id']
+                        else:
+                            p_id = db.create_patient(st.session_state.user_id, p_name, p_contact, p_age)
+
+                    # 2. Save medical record to the correct p_id
+                    db.create_medical_record(p_id, input_data, target, prob)
+                    st.success(f"Analysis complete for {p_name}! Risk: {cat} ({prob:.1f}%)")
+                else:
+                    st.error(f"Error: {status}")
