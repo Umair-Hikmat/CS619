@@ -206,7 +206,7 @@ else:
                         r_cols[i+1].write(row[col_name])
 
     # ... rest of the code ...
-elif menu == "Add New Patient":
+    elif menu == "Add New Patient":
         # Keep your existing "Add New Patient" code here...
         st.title("🩺 Cardiac Analysis")
         # (Rest of your form logic from the original snippet)
