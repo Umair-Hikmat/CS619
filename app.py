@@ -99,7 +99,7 @@ else:
             st.info("No patients found in your records.")
         else:
             # --- DISPLAY LOGIC ---
-            col_search, col_config = st.columns([2, 1])
+            col_search, col_config, col_export = st.columns([2, 1, 1]) # Added col_export
             with col_search:
                 search_term = st.text_input("🔍 Search Patients", placeholder="Filter by name...")
                 if search_term:
@@ -110,11 +110,27 @@ else:
                 selected_cols = st.multiselect("Columns", all_display_cols,
                                                default=["Name", "Status", "Probability", "Last Visit"])
 
+            with col_export:
+                # Prepare data for export: convert Probability to percentage for CSV
+                df_export = df.copy()
+                if 'Probability' in df_export.columns:
+                    df_export['Probability'] = (df_export['Probability'] * 100).round(2).astype(str) + '%'
+
+                csv_data = df_export.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Export Patient List to CSV",
+                    data=csv_data,
+                    file_name="patient_list.csv",
+                    mime="text/csv",
+                    key="download_patient_list",
+                    use_container_width=True
+                )
+
             # Pagination
             items_per_page = 50
             total_pages = math.ceil(len(df) / items_per_page) if len(df) > 0 else 1
             page = st.sidebar.number_input("Page", min_value=1, max_value=total_pages, step=1)
-            df_page = df.iloc[(page - 1) * items_per_page : page * items_per_page].copy()
+            df_page = df.iloc[(page - 1) * items_per_page : page * items_per_page].copy() # Using df_page for display
 
             st.write("---")
             header_cols = st.columns([0.5] + [2 for _ in selected_cols])
@@ -128,14 +144,14 @@ else:
                 r_cols[0].checkbox("", value=select_all, key=f"p_{row['ID']}")
 
                 # Determine Status text based on the Probability fetched from Medical Records
-                p_val = row['Probability']
+                p_val_percent = row['Probability'] * 100 # Convert to percentage for comparison and display
                 if row['Last Visit'] == "No history":
                     status_text = "⚪ No Data"
-                elif p_val < 30:
+                elif p_val_percent < 30:
                     status_text = "🟢 Low Risk"
-                elif p_val < 50:
+                elif p_val_percent < 50:
                     status_text = "🟡 Moderate"
-                elif p_val < 75:
+                elif p_val_percent < 75:
                     status_text = "🟠 High Risk"
                 else:
                     status_text = "🔴 Critical"
@@ -145,7 +161,7 @@ else:
                     if col_name == "Status":
                         r_cols[i+1].write(status_text)
                     elif col_name == "Probability":
-                        val = f"{p_val:.1f}%" if row['Last Visit'] != "No history" else "N/A"
+                        val = f"{p_val_percent:.1f}%" if row['Last Visit'] != "No history" else "N/A"
                         r_cols[i+1].write(val)
                     else:
                         r_cols[i+1].write(row[col_name])
