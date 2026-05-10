@@ -11,7 +11,6 @@ def init_db():
     with sqlite3.connect(DB_NAME) as conn:
         cursor = conn.cursor()
 
-        # ---------------- DOCTORS ----------------
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS doctors (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +25,6 @@ def init_db():
         )
         """)
 
-        # ---------------- PATIENTS ----------------
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS patients (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,7 +36,6 @@ def init_db():
         )
         """)
 
-        # ---------------- RECORDS ----------------
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,16 +72,16 @@ def init_db():
 
 def verify_login(email, password):
     with sqlite3.connect(DB_NAME) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
+        cur = conn.cursor()
+        cur.execute("""
             SELECT id, first_name, last_name
             FROM doctors
             WHERE email=? AND password=?
         """, (email, password))
-        return cursor.fetchone()
+        return cur.fetchone()
 
 # =========================================================
-# DOCTORS
+# DOCTOR FUNCTIONS
 # =========================================================
 
 def create_doctor(f_name, l_name, email, contact, pwd, qual, dob):
@@ -97,22 +94,13 @@ def create_doctor(f_name, l_name, email, contact, pwd, qual, dob):
             """, (f_name, l_name, email, contact, pwd, qual, dob))
             conn.commit()
             return True
-    except sqlite3.IntegrityError:
+    except:
         return False
 
 
-def get_doctors(doc_ids=None):
+def get_doctors():
     with sqlite3.connect(DB_NAME) as conn:
-
-        if doc_ids is None:
-            return pd.read_sql("SELECT * FROM doctors", conn)
-
-        ids = [doc_ids] if isinstance(doc_ids, int) else doc_ids
-        query = f"""
-            SELECT * FROM doctors
-            WHERE id IN ({','.join(['?']*len(ids))})
-        """
-        return pd.read_sql(query, conn, params=ids)
+        return pd.read_sql("SELECT * FROM doctors", conn)
 
 
 def update_doctor(doc_id, f_name, l_name, contact, qual):
@@ -125,38 +113,25 @@ def update_doctor(doc_id, f_name, l_name, contact, qual):
         conn.commit()
 
 # =========================================================
-# PATIENTS
+# PATIENT FUNCTIONS
 # =========================================================
 
 def create_patient(doc_id, name, contact, age):
     with sqlite3.connect(DB_NAME) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
+        cur = conn.cursor()
+        cur.execute("""
             INSERT INTO patients (doc_id, name, contact_no, age)
             VALUES (?, ?, ?, ?)
         """, (doc_id, name, contact, age))
         conn.commit()
-        return cursor.lastrowid
+        return cur.lastrowid
 
 
-def get_patients(doc_id, patient_ids=None):
+def get_patients(doc_id):
     with sqlite3.connect(DB_NAME) as conn:
-
-        if patient_ids is None:
-            return pd.read_sql(
-                "SELECT * FROM patients WHERE doc_id=?",
-                conn,
-                params=(doc_id,)
-            )
-
-        ids = [patient_ids] if isinstance(patient_ids, int) else patient_ids
-        query = f"""
-            SELECT * FROM patients
-            WHERE doc_id=?
-            AND id IN ({','.join(['?']*len(ids))})
-        """
-
-        return pd.read_sql(query, conn, params=(doc_id, *ids))
+        return pd.read_sql("""
+            SELECT * FROM patients WHERE doc_id=?
+        """, conn, params=(doc_id,))
 
 
 def update_patient(p_id, name, contact, age):
@@ -176,12 +151,11 @@ def delete_patient(p_id):
         conn.commit()
 
 # =========================================================
-# MEDICAL RECORDS
+# MEDICAL RECORD FUNCTIONS
 # =========================================================
 
 def create_medical_record(patient_id, data_dict, target, prob):
     with sqlite3.connect(DB_NAME) as conn:
-
         values = list(data_dict.values())
 
         conn.execute("""
@@ -202,30 +176,17 @@ def create_medical_record(patient_id, data_dict, target, prob):
         conn.commit()
 
 
-def get_records(patient_id, record_ids=None):
+def get_records(patient_id):
     with sqlite3.connect(DB_NAME) as conn:
-
-        if record_ids is None:
-            return pd.read_sql("""
-                SELECT * FROM records
-                WHERE patient_id=?
-                ORDER BY visit_date DESC
-            """, conn, params=(patient_id,))
-
-        ids = [record_ids] if isinstance(record_ids, int) else record_ids
-        query = f"""
+        return pd.read_sql("""
             SELECT * FROM records
             WHERE patient_id=?
-            AND id IN ({','.join(['?']*len(ids))})
             ORDER BY visit_date DESC
-        """
-
-        return pd.read_sql(query, conn, params=(patient_id, *ids))
+        """, conn, params=(patient_id,))
 
 
 def update_medical_record(record_id, data_dict, target, prob):
     with sqlite3.connect(DB_NAME) as conn:
-
         values = list(data_dict.values())
 
         conn.execute("""
@@ -248,3 +209,29 @@ def delete_medical_record(record_id):
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute("DELETE FROM records WHERE id=?", (record_id,))
         conn.commit()
+
+# =========================================================
+# 🔥 IMPORTANT FIX: GET ALL DOCTOR RECORDS
+# =========================================================
+
+def get_all_doctor_records(doc_id):
+    """
+    Returns ALL medical records for ALL patients of a doctor.
+    FIXES: missing multiple records per patient issue.
+    """
+
+    with sqlite3.connect(DB_NAME) as conn:
+
+        query = """
+        SELECT
+            r.*,
+            p.name AS Patient,
+            p.contact_no AS Contact,
+            p.doc_id
+        FROM records r
+        JOIN patients p ON r.patient_id = p.id
+        WHERE p.doc_id = ?
+        ORDER BY r.visit_date DESC
+        """
+
+        return pd.read_sql(query, conn, params=(doc_id,))
