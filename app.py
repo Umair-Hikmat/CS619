@@ -338,8 +338,7 @@ else:
         if st.session_state.editing_patient_id is not None:
 
             patient_df = db.get_patients(
-                st.session_state.user_id,
-                st.session_state.editing_patient_id
+                st.session_state.user_id
             )
 
             if not patient_df.empty:
