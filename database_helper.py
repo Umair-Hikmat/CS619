@@ -110,40 +110,110 @@ def delete_patient(p_id):
 # ==========================================
 
 def create_medical_record(patient_id, data_dict, target, prob):
-    with sqlite3.connect(DB_NAME) as conn:
-        vals = list(data_dict.values())
-        query = """INSERT INTO records (patient_id, Age, Gender, ChestPainType, RestingBloodPressure,
-                   Cholesterol, FastingBloodSugar, RestECG, MaxHeartRate, ExerciseInducedAngina,
-                   ST_Depression, ST_Slope, MajorVessels, Thalassemia, Target, Probability, visit_date)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, CURRENT_TIMESTAMP)"""
-        conn.execute(query, [patient_id] + vals + [target, prob])
 
-def get_records(patient_id, record_ids=None):
-    """Retrieves 1, multiple, or all records for a patient."""
     with sqlite3.connect(DB_NAME) as conn:
-        if record_ids is None:
-            query = f"SELECT * FROM records WHERE patient_id={patient_id} ORDER BY visit_date DESC"
-        else:
-            ids = [record_ids] if isinstance(record_ids, int) else record_ids
-            id_tuple = str(tuple(ids)).replace(',)', ')')
-            query = f"SELECT * FROM records WHERE patient_id={patient_id} AND id IN {id_tuple} ORDER BY visit_date DESC"
-        return pd.read_sql(query, conn)
+
+        vals = list(data_dict.values())
+
+        query = """
+            INSERT INTO records (
+                patient_id,
+                Age,
+                Gender,
+                ChestPainType,
+                RestingBloodPressure,
+                Cholesterol,
+                FastingBloodSugar,
+                RestECG,
+                MaxHeartRate,
+                ExerciseInducedAngina,
+                ST_Depression,
+                ST_Slope,
+                MajorVessels,
+                Thalassemia,
+                Target,
+                Probability,
+                visit_date
+            )
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+        """
+
+        conn.execute(query, [patient_id] + vals + [target, prob])
+        conn.commit()
+
+def get_all_medical_records_by_doctor(doctor_id):
+
+    with sqlite3.connect(DB_NAME) as conn:
+
+        query = """
+            SELECT 
+                r.id AS id,
+                r.patient_id,
+                p.name AS patient_name,
+                p.contact_no,
+                p.age AS patient_age,
+
+                r.Age,
+                r.Gender,
+                r.ChestPainType,
+                r.RestingBloodPressure,
+                r.Cholesterol,
+                r.FastingBloodSugar,
+                r.RestECG,
+                r.MaxHeartRate,
+                r.ExerciseInducedAngina,
+                r.ST_Depression,
+                r.ST_Slope,
+                r.MajorVessels,
+                r.Thalassemia,
+                r.Target,
+                r.Probability,
+                r.visit_date
+
+            FROM records r
+            INNER JOIN patients p 
+                ON r.patient_id = p.id
+            WHERE p.doc_id = ?
+            ORDER BY r.visit_date DESC
+        """
+
+        return pd.read_sql(query, conn, params=(doctor_id,))
 
 def update_medical_record(record_id, data_dict, target, prob):
+
     with sqlite3.connect(DB_NAME) as conn:
+
         vals = list(data_dict.values())
-        query = """UPDATE records SET
-                   Age=?, Gender=?, ChestPainType=?, RestingBloodPressure=?,
-                   Cholesterol=?, FastingBloodSugar=?, RestECG=?, MaxHeartRate=?,
-                   ExerciseInducedAngina=?, ST_Depression=?, ST_Slope=?,
-                   MajorVessels=?, Thalassemia=?, Target=?, Probability=?,
-                   visit_date=CURRENT_TIMESTAMP WHERE id=?"""
+
+        query = """
+            UPDATE records SET
+                Age=?,
+                Gender=?,
+                ChestPainType=?,
+                RestingBloodPressure=?,
+                Cholesterol=?,
+                FastingBloodSugar=?,
+                RestECG=?,
+                MaxHeartRate=?,
+                ExerciseInducedAngina=?,
+                ST_Depression=?,
+                ST_Slope=?,
+                MajorVessels=?,
+                Thalassemia=?,
+                Target=?,
+                Probability=?,
+                visit_date=CURRENT_TIMESTAMP
+            WHERE id=?
+        """
+
         conn.execute(query, vals + [target, prob, record_id])
+        conn.commit()
 
 def delete_medical_record(record_id):
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute("DELETE FROM records WHERE id=?", (record_id,))
-
+        conn.commit()
+        
 def get_all_medical_records_by_doctor(doctor_id):
 
     with sqlite3.connect(DB_NAME) as conn:
