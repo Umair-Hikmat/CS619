@@ -25,11 +25,11 @@ def init_db():
         # 3. MEDICAL RECORDS TABLE (13 Features + Target + Probability)
         cursor.execute('''CREATE TABLE IF NOT EXISTS records
                          (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id INTEGER,
-                          Age INTEGER, Gender TEXT, ChestPainType TEXT,
+                          Age INTEGER, Gender INTEGER, ChestPainType INTEGER,
                           RestingBloodPressure INTEGER, Cholesterol INTEGER,
-                          FastingBloodSugar INTEGER, RestECG TEXT, MaxHeartRate INTEGER,
+                          FastingBloodSugar INTEGER, RestECG INTEGER, MaxHeartRate INTEGER,
                           ExerciseInducedAngina INTEGER, ST_Depression REAL,
-                          ST_Slope TEXT, MajorVessels INTEGER, Thalassemia TEXT,
+                          ST_Slope INTEGER, MajorVessels INTEGER, Thalassemia INTEGER,
                           Target INTEGER, Probability REAL, visit_date TIMESTAMP,
                           FOREIGN KEY(patient_id) REFERENCES patients(id))''')
         conn.commit()
@@ -52,7 +52,7 @@ def create_doctor(f_name, l_name, email, contact, pwd, qual, dob):
     try:
         with sqlite3.connect(DB_NAME) as conn:
             conn.execute("""INSERT INTO doctors (first_name, last_name, email, contact_no, password, qualification, dob)
-                         VALUES (?,?,?,?,?,?,?)""", (f_name, l_name, email, contact, pwd, qual, dob))
+                         VALUES (?,?,?,?,?,?,?)""", (f_name, l_name, email, contact, pwd, qual, str(dob)))
             return True
     except sqlite3.IntegrityError: return False
 
