@@ -265,7 +265,7 @@ else:
             st.subheader("Clinical Metrics")
             col_a, col_b = st.columns(2)
             with col_a:
-                p_gender = st.selectbox("Gender", ["Male", "Female", "Other"])
+                p_gender = st.selectbox("Gender", ["Male", "Female"])
                 cp = st.selectbox("Chest Pain Type", ["Typical Angina", "Atypical Angina", "Non-Anginal Pain", "Asymptomatic"])
                 rbp = st.number_input("Resting Blood Pressure", value=120)
                 chol = st.number_input("Cholesterol", value=200)
@@ -280,7 +280,7 @@ else:
                 thal = st.selectbox("Thalassemia", ["Normal", "Fixed Defect", "Reversible Defect"])
 
             if st.form_submit_button("Run Analysis & Save"):
-                gender_map = {"Male": 1, "Female": 0, "Other": 0}
+                gender_map = {"Male": 1, "Female": 0}
                 cp_map = {"Typical Angina": 0, "Atypical Angina": 1, "Non-Anginal Pain": 2, "Asymptomatic": 3}
                 restecg_map = {"Normal": 0, "ST-T Wave Abnormality": 1, "Left Ventricular Hypertrophy": 2}
                 slope_map = {"Up": 0, "Flat": 1, "Down": 2}
@@ -441,8 +441,8 @@ else:
                             with col_a_rec:
                                 edit_age = st.number_input("Age", value=int(record_to_edit['Age']), min_value=1, max_value=120, key="edit_rec_age")
                                 # Using original numeric values for index lookup
-                                current_gender_str = disp_gender_map.get(record_to_edit['Gender'], "Other")
-                                edit_gender = st.selectbox("Gender", ["Male", "Female", "Other"], index=["Male", "Female", "Other"].index(current_gender_str), key="edit_rec_gender")
+                                current_gender_str = disp_gender_map.get(record_to_edit['Gender'], "Female") # Default to Female if value not in map
+                                edit_gender = st.selectbox("Gender", ["Male", "Female"], index=["Male", "Female"].index(current_gender_str), key="edit_rec_gender")
 
                                 current_cp_str = disp_cp_map.get(record_to_edit['ChestPainType'])
                                 edit_cp = st.selectbox("Chest Pain Type", ["Typical Angina", "Atypical Angina", "Non-Anginal Pain", "Asymptomatic"], index=["Typical Angina", "Atypical Angina", "Non-Anginal Pain", "Asymptomatic"].index(current_cp_str), key="edit_rec_cp")
@@ -472,7 +472,7 @@ else:
                             # Place submit buttons directly within the form context
                             with col_rec_submit:
                                 if st.form_submit_button("Update Record"):
-                                    gender_map = {"Male": 1, "Female": 0, "Other": 0}
+                                    gender_map = {"Male": 1, "Female": 0}
                                     cp_map = {"Typical Angina": 0, "Atypical Angina": 1, "Non-Anginal Pain": 2, "Asymptomatic": 3}
                                     restecg_map = {"Normal": 0, "ST-T Wave Abnormality": 1, "Left Ventricular Hypertrophy": 2}
                                     slope_map = {"Up": 0, "Flat": 1, "Down": 2}
