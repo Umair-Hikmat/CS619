@@ -145,33 +145,33 @@ def delete_medical_record(record_id):
         conn.execute("DELETE FROM records WHERE id=?", (record_id,))
 
 def get_all_medical_records_by_doctor(doctor_id):
-    conn = get_connection()
 
-    query = """
-        SELECT 
-            mr.id AS id,
-            mr.patient_id,
-            mr.Age,
-            mr.Gender,
-            mr.ChestPainType,
-            mr.RestingBloodPressure,
-            mr.Cholesterol,
-            mr.FastingBloodSugar,
-            mr.RestECG,
-            mr.MaxHeartRate,
-            mr.ExerciseInducedAngina,
-            mr.ST_Depression,
-            mr.ST_Slope,
-            mr.MajorVessels,
-            mr.Thalassemia,
-            mr.Probability,
-            mr.visit_date
-        FROM medical_records mr
-        INNER JOIN patients p ON mr.patient_id = p.id
-        WHERE p.doctor_id = ?
-    """
+    with sqlite3.connect(DB_NAME) as conn:
 
-    df = pd.read_sql(query, conn, params=(doctor_id,))
-    conn.close()
+        query = """
+            SELECT 
+                r.id AS id,
+                r.patient_id,
+                r.Age,
+                r.Gender,
+                r.ChestPainType,
+                r.RestingBloodPressure,
+                r.Cholesterol,
+                r.FastingBloodSugar,
+                r.RestECG,
+                r.MaxHeartRate,
+                r.ExerciseInducedAngina,
+                r.ST_Depression,
+                r.ST_Slope,
+                r.MajorVessels,
+                r.Thalassemia,
+                r.Probability,
+                r.visit_date
+            FROM records r
+            INNER JOIN patients p ON r.patient_id = p.id
+            WHERE p.doc_id = ?
+        """
+
+        df = pd.read_sql(query, conn, params=(doctor_id,))
 
     return df
