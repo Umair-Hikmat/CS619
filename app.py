@@ -19,6 +19,9 @@ if 'auth_mode' not in st.session_state:
 # Initialize session state for editing
 if 'editing_patient_id' not in st.session_state:
     st.session_state.editing_patient_id = None
+# Initialize session state for editing medical record
+if 'editing_record_id' not in st.session_state:
+    st.session_state.editing_record_id = None
 
 importlib.reload(db)
 db.init_db()
@@ -35,7 +38,7 @@ if not st.session_state.logged_in:
 # --- MAIN CLINICAL DASHBOARD ---
 else:
     st.sidebar.title(f"Dr. {st.session_state.user_name}")
-    menu = st.sidebar.radio("Navigation", ["Dashboard", "Patients List", "Add New Patient", "Medical Records", "Logout"]) # Added "Medical Records"
+    menu = st.sidebar.radio("Navigation", ["Dashboard", "Patients List", "Add New Patient", "Medical Records", "Logout"])
 
     if menu == "Logout":
         st.session_state.logged_in = False
@@ -45,7 +48,6 @@ else:
     elif menu == "Dashboard":
         st.title("📈 Clinical Insights")
 
-        # --- FIXED: PAKISTANI TIME (PKT) ---
         pak_tz = pytz.timezone('Asia/Karachi')
         pkt_now = datetime.now(pak_tz).strftime("%I:%M %p")
 
@@ -61,66 +63,59 @@ else:
     elif menu == "Patients List":
         st.title("Patients")
 
-        # 1. FETCH IDENTITY DATA
         patients_df = db.get_patients(st.session_state.user_id)
         summary_list = []
 
-        # 2. FETCH CLINICAL DATA FOR EACH PATIENT
         for _, p in patients_df.iterrows():
-            # Get the history for this specific patient ID
-            # Records are ordered by visit_date DESC in db.get_records, so iloc[0] is always the latest.
             medical_history = db.get_records(p['id'])
 
-            # Default values if no medical record exists yet
             prob_val = 0.0 # Will store 0-100 percentage
             target_val = "N/A"
             visit_val = "No history"
+            status_text = "⚪ No Data"
 
             if not medical_history.empty:
                 latest_rec = medical_history.iloc[0]
-
-                # 'Probability' is already stored as a percentage (0-100) from model_handler.py's return
                 prob_val = latest_rec.get('Probability', 0.0)
                 target_val = latest_rec.get('Target', "N/A")
                 visit_val = latest_rec.get('visit_date', "No history")
 
-            # Combine Identity + Clinical Data into one dictionary
+                if prob_val < 30:
+                    status_text = "🟢 Low Risk"
+                elif prob_val < 50:
+                    status_text = "🟡 Moderate"
+                elif prob_val < 75:
+                    status_text = "🟠 High Risk"
+                else:
+                    status_text = "🔴 Critical"
+
             summary_list.append({
                 "ID": p['id'],
                 "Name": p['name'],
                 "Age": p['age'],
                 "Contact": p['contact_no'],
-                "Probability": prob_val,
+                "Probability": f"{prob_val:.1f}%" if visit_val != "No history" else "N/A",
                 "Target": target_val,
-                "Last Visit": visit_val
+                "Last Visit": visit_val,
+                "Status": status_text
             })
 
-        # Create the final DataFrame for the UI
         df = pd.DataFrame(summary_list)
 
         if df.empty:
             st.info("No patients found in your records.")
         else:
-            # --- DISPLAY LOGIC ---
-            col_search, col_config, col_export = st.columns([2, 1, 1])
+            col_search, col_export = st.columns([3, 1])
             with col_search:
-                search_term = st.text_input("🔍 Search Patients", placeholder="Filter by name...")
+                search_term = st.text_input("🔍 Search Patients", placeholder="Filter by name or contact...", key="patient_search")
                 if search_term:
-                    df = df[df['Name'].str.contains(search_term, case=False)]
-
-            with col_config:
-                all_display_cols = ["Name", "Age", "Contact", "Probability", "Target", "Last Visit", "Status", "Actions"]
-                selected_cols = st.multiselect("Columns", all_display_cols,
-                                               default=["Name", "Status", "Probability", "Last Visit", "Actions"])
+                    df = df[df['Name'].str.contains(search_term, case=False) | df['Contact'].str.contains(search_term, case=False)]
 
             with col_export:
-                # NEW EXPORT LOGIC
                 if not df.empty:
-                    # Get IDs of currently filtered patients
                     patient_ids_to_export = df['ID'].tolist()
                     all_medical_records_list = []
 
-                    # Fetch all medical records for these patients
                     for pid in patient_ids_to_export:
                         patient_records = db.get_records(pid)
                         if not patient_records.empty:
@@ -129,7 +124,6 @@ else:
                     if all_medical_records_list:
                         full_records_df = pd.concat(all_medical_records_list, ignore_index=True)
 
-                        # Apply reverse mappings for categorical features for better readability
                         rev_gender_map = {1: "Male", 0: "Female/Other"}
                         rev_cp_map = {0: "Typical Angina", 1: "Atypical Angina", 2: "Non-Anginal Pain", 3: "Asymptomatic"}
                         rev_restecg_map = {0: "Normal", 1: "ST-T Wave Abnormality", 2: "Left Ventricular Hypertrophy"}
@@ -147,7 +141,6 @@ else:
                         if 'Thalassemia' in full_records_df.columns:
                             full_records_df['Thalassemia'] = full_records_df['Thalassemia'].map(rev_thal_map).fillna(full_records_df['Thalassemia'])
 
-                        # Format Probability as percentage for export
                         if 'Probability' in full_records_df.columns:
                             full_records_df['Probability'] = full_records_df['Probability'].round(2).astype(str) + '%'
 
@@ -165,77 +158,50 @@ else:
                 else:
                     st.info("No patients found to export records for.")
 
-
-            # Pagination
-            items_per_page = 50
-            total_pages = math.ceil(len(df) / items_per_page) if len(df) > 0 else 1
-            page = st.sidebar.number_input("Page", min_value=1, max_value=total_pages, step=1)
-            df_page = df.iloc[(page - 1) * items_per_page : page * items_per_page].copy()
-
-
             st.write("---")
-            # Adjust column width for actions if 'Actions' is selected
-            col_widths = [0.5] + [2 for _ in selected_cols if _ != "Actions"]
-            if "Actions" in selected_cols:
-                col_widths.append(3) # Give more space for buttons
-            header_cols = st.columns(col_widths)
 
-            select_all = header_cols[0].checkbox("All", key="master_check_patients")
+            # Display DataFrame with selection capabilities
+            edited_df = st.dataframe(
+                df,
+                column_order=["Name", "Status", "Probability", "Last Visit", "Age", "Contact", "ID", "Target"],
+                column_config={
+                    "ID": st.column_config.Column(disabled=True),
+                    "Target": st.column_config.Column(disabled=True)
+                },
+                hide_index=True,
+                use_container_width=True,
+                on_select="rerun", # Rerun on selection change to update buttons
+                selection_mode="multi-row"
+            )
 
-            col_idx = 1
-            for col_name in selected_cols:
-                header_cols[col_idx].markdown(f"**{col_name}**")
-                col_idx += 1
+            selected_rows = edited_df.selection.rows
+            selected_patient_ids = df.loc[selected_rows, 'ID'].tolist()
 
-            # Store selected patient IDs for bulk actions
-            selected_patient_ids = []
+            # --- Action Buttons for Selected Patients ---
+            st.write("---")
+            if selected_patient_ids:
+                col_edit_selected, col_delete_selected, col_bulk_edit_placeholder = st.columns(3)
 
-            for _, row in df_page.iterrows():
-                row_cols = st.columns(col_widths)
-                # Checkbox for selection
-                if row_cols[0].checkbox("", value=select_all, key=f"p_select_{row['ID']}"):
-                    selected_patient_ids.append(row['ID'])
+                if len(selected_patient_ids) == 1:
+                    patient_id_to_edit = selected_patient_ids[0]
+                    if col_edit_selected.button(f"Edit Patient {df[df['ID'] == patient_id_to_edit]['Name'].iloc[0]}", key="edit_single_patient_btn", use_container_width=True):
+                        st.session_state.editing_patient_id = patient_id_to_edit
+                        st.rerun()
+                    if col_delete_selected.button(f"Delete Patient {df[df['ID'] == patient_id_to_edit]['Name'].iloc[0]}", key="delete_single_patient_btn", use_container_width=True):
+                        db.delete_patient(patient_id_to_edit)
+                        st.success(f"Patient {df[df['ID'] == patient_id_to_edit]['Name'].iloc[0]} and all their records deleted.")
+                        st.rerun()
+                elif len(selected_patient_ids) > 1:
+                    if col_delete_selected.button(f"Delete {len(selected_patient_ids)} Selected Patients", key="bulk_delete_patients_btn", use_container_width=True):
+                        for p_id in selected_patient_ids:
+                            db.delete_patient(p_id)
+                        st.success(f"Deleted {len(selected_patient_ids)} patients.")
+                        st.rerun()
+                    # Placeholder for bulk edit
+                    if col_bulk_edit_placeholder.button(f"Bulk Update {len(selected_patient_ids)} Patients", key="bulk_edit_patients_placeholder_btn", use_container_width=True):
+                        st.info("Bulk edit functionality will be added here. Please specify which fields you'd like to bulk update!")
 
-
-                # Determine Status text based on the Probability fetched from Medical Records
-                p_val_percent = row['Probability']
-
-                if row['Last Visit'] == "No history":
-                    status_text = "⚪ No Data"
-                elif p_val_percent < 30:
-                    status_text = "🟢 Low Risk"
-                elif p_val_percent < 50:
-                    status_text = "🟡 Moderate"
-                elif p_val_percent < 75:
-                    status_text = "🟠 High Risk"
-                else:
-                    status_text = "🔴 Critical"
-
-                # Fill the columns
-                row_col_idx = 1
-                for col_name in selected_cols:
-                    if col_name == "Status":
-                        row_cols[row_col_idx].write(status_text)
-                    elif col_name == "Probability":
-                        val = f"{p_val_percent:.1f}%" if row['Last Visit'] != "No history" else "N/A"
-                        row_cols[row_col_idx].write(val)
-                    elif col_name == "Actions":
-                        action_col_edit, action_col_delete = row_cols[row_col_idx].columns(2)
-                        # Edit Button
-                        if action_col_edit.button("Edit", key=f"edit_patient_{row['ID']}", use_container_width=True):
-                            st.session_state.editing_patient_id = row['ID']
-                            st.rerun()
-                        # Delete Button
-                        if action_col_delete.button("Delete", key=f"delete_patient_{row['ID']}", use_container_width=True):
-                            db.delete_patient(row['ID'])
-                            st.success(f"Patient {row['Name']} and all their records deleted.")
-                            st.session_state.editing_patient_id = None # Clear any active edit form
-                            st.rerun()
-                    else:
-                        row_cols[row_col_idx].write(row[col_name])
-                    row_col_idx += 1
-
-            # --- Edit Patient Form (Modal/Expander) ---
+            # --- Edit Patient Form (Expander) ---
             if st.session_state.editing_patient_id is not None:
                 patient_to_edit_df = db.get_patients(st.session_state.user_id, st.session_state.editing_patient_id)
                 if not patient_to_edit_df.empty:
@@ -252,31 +218,20 @@ else:
                                 if st.form_submit_button("Update Patient"):
                                     db.update_patient(st.session_state.editing_patient_id, edit_name, edit_contact, edit_age)
                                     st.success("Patient updated successfully!")
-                                    st.session_state.editing_patient_id = None # Clear editing state
+                                    st.session_state.editing_patient_id = None
                                     st.rerun()
                             with col_edit_cancel:
                                 if st.form_submit_button("Cancel"):
-                                    st.session_state.editing_patient_id = None # Clear editing state
+                                    st.session_state.editing_patient_id = None
                                     st.rerun()
                 else:
-                    st.session_state.editing_patient_id = None # Patient not found, clear state
-
-            # --- Bulk Actions ---
-            st.write("---")
-            if selected_patient_ids:
-                if st.button(f"Delete {len(selected_patient_ids)} Selected Patients", key="bulk_delete_patients"):
-                    for p_id in selected_patient_ids:
-                        db.delete_patient(p_id)
-                    st.success(f"Deleted {len(selected_patient_ids)} patients.")
-                    st.rerun()
+                    st.session_state.editing_patient_id = None
 
     elif menu == "Add New Patient":
         st.title("🩺 Cardiac Analysis")
 
-        # 1. FETCH EXISTING PATIENTS
         existing_patients = db.get_patients(st.session_state.user_id)
 
-        # Create search labels like "John Smith | 0300-1234567"
         patient_options = ["-- Register New Patient --"]
         if not existing_patients.empty:
             patient_options += (existing_patients['name'] + " | " + existing_patients['contact_no']).tolist()
@@ -292,17 +247,14 @@ else:
                 p_age = col2.number_input("Age", min_value=1, max_value=120, value=30)
                 p_contact = col3.text_input("Contact No (Unique ID)")
                 is_new_patient = True
-                # Pre-fill patient_id if it's a new patient (it will be created)
                 p_id = None
             else:
-                # Extract contact from the selection string "Name | Contact"
                 selected_contact = search_selection.split(" | ")[-1]
                 p_info = existing_patients[existing_patients['contact_no'] == selected_contact].iloc[0]
 
-                # Display info as read-only for confirmation
                 st.info(f"**Selected:** {p_info['name']} | **Age:** {p_info['age']} | **ID:** {p_info['id']}")
                 p_name, p_age, p_contact = p_info['name'], p_info['age'], p_info['contact_no']
-                p_id = p_info['id'] # Set p_id for existing patient
+                p_id = p_info['id']
                 is_new_patient = False
 
             st.subheader("Clinical Metrics")
@@ -323,7 +275,6 @@ else:
                 thal = st.selectbox("Thalassemia", ["Normal", "Fixed Defect", "Reversible Defect"])
 
             if st.form_submit_button("Run Analysis & Save"):
-                # --- MAPPING LOGIC ---
                 gender_map = {"Male": 1, "Female": 0, "Other": 0}
                 cp_map = {"Typical Angina": 0, "Atypical Angina": 1, "Non-Anginal Pain": 2, "Asymptomatic": 3}
                 restecg_map = {"Normal": 0, "ST-T Wave Abnormality": 1, "Left Ventricular Hypertrophy": 2}
@@ -343,9 +294,7 @@ else:
                 target, prob, cat, status = mh.predict_heart_risk(input_data)
 
                 if status == "Success":
-                    # --- SAVE LOGIC ---
                     if is_new_patient:
-                        # 1. Check if contact exists to prevent error
                         check_exist = existing_patients[existing_patients['contact_no'] == p_contact]
                         if not check_exist.empty:
                             st.warning("A patient with this contact already exists. Updating record for that patient instead.")
@@ -353,7 +302,6 @@ else:
                         else:
                             p_id = db.create_patient(st.session_state.user_id, p_name, p_contact, p_age)
 
-                    # 2. Save medical record to the correct p_id
                     db.create_medical_record(p_id, input_data, target, prob)
                     st.success(f"Analysis complete for {p_name}! Risk: {cat} ({prob:.1f}%)")
                 else:
@@ -363,40 +311,43 @@ else:
         st.title("📋 All Medical Records")
 
         all_records = []
-        # Fetch all patients for the logged-in doctor
         patients_df = db.get_patients(st.session_state.user_id)
+
+        disp_gender_map = {1: "Male", 0: "Female"}
+        disp_cp_map = {0: "Typical Angina", 1: "Atypical Angina", 2: "Non-Anginal Pain", 3: "Asymptomatic"}
+        disp_restecg_map = {0: "Normal", 1: "ST-T Wave Abnormality", 2: "Left Ventricular Hypertrophy"}
+        disp_slope_map = {0: "Up", 1: "Flat", 2: "Down"}
+        disp_thal_map = {1: "Normal", 2: "Fixed Defect", 3: "Reversible Defect"}
 
         if not patients_df.empty:
             for _, patient in patients_df.iterrows():
                 patient_records_df = db.get_records(patient['id'])
                 if not patient_records_df.empty:
-                    # Merge patient info with medical records
                     merged_df = patient_records_df.assign(patient_name=patient['name'], patient_contact=patient['contact_no'])
                     all_records.append(merged_df)
 
         if all_records:
             full_medical_records_df = pd.concat(all_records, ignore_index=True)
-            # Sort by visit_date newest first
             full_medical_records_df['visit_date'] = pd.to_datetime(full_medical_records_df['visit_date'])
             full_medical_records_df = full_medical_records_df.sort_values(by='visit_date', ascending=False).reset_index(drop=True)
 
-            # --- DISPLAY LOGIC FOR MEDICAL RECORDS ---
-            col_search_rec, col_config_rec, col_export_rec = st.columns([2, 1, 1])
+            # Apply reverse mappings for display
+            full_medical_records_df['Gender_Display'] = full_medical_records_df['Gender'].map(disp_gender_map).fillna(full_medical_records_df['Gender'])
+            full_medical_records_df['ChestPainType_Display'] = full_medical_records_df['ChestPainType'].map(disp_cp_map).fillna(full_medical_records_df['ChestPainType'])
+            full_medical_records_df['RestECG_Display'] = full_medical_records_df['RestECG'].map(disp_restecg_map).fillna(full_medical_records_df['RestECG'])
+            full_medical_records_df['ST_Slope_Display'] = full_medical_records_df['ST_Slope'].map(disp_slope_map).fillna(full_medical_records_df['ST_Slope'])
+            full_medical_records_df['Thalassemia_Display'] = full_medical_records_df['Thalassemia'].map(disp_thal_map).fillna(full_medical_records_df['Thalassemia'])
+            full_medical_records_df['Probability_Display'] = full_medical_records_df['Probability'].apply(lambda x: f"{x:.1f}%")
+
+
+            col_search_rec, col_export_rec = st.columns([3, 1])
             with col_search_rec:
-                search_term_rec = st.text_input("🔍 Search Medical Records", placeholder="Filter by patient name or contact...")
+                search_term_rec = st.text_input("🔍 Search Medical Records", placeholder="Filter by patient name or contact...", key="record_search")
                 if search_term_rec:
                     full_medical_records_df = full_medical_records_df[
                         full_medical_records_df['patient_name'].str.contains(search_term_rec, case=False) |
                         full_medical_records_df['patient_contact'].str.contains(search_term_rec, case=False)
                     ]
-
-            with col_config_rec:
-                record_display_cols = ["patient_name", "patient_contact", "Age", "Gender", "ChestPainType",
-                                       "RestingBloodPressure", "Cholesterol", "FastingBloodSugar", "RestECG",
-                                       "MaxHeartRate", "ExerciseInducedAngina", "ST_Depression", "ST_Slope",
-                                       "MajorVessels", "Thalassemia", "Probability", "Target", "visit_date", "Actions"]
-                selected_rec_cols = st.multiselect("Record Columns", record_display_cols,
-                                                   default=["patient_name", "visit_date", "Probability", "Target", "Actions"])
 
             with col_export_rec:
                 csv_data_rec = full_medical_records_df.to_csv(index=False).encode('utf-8')
@@ -409,97 +360,95 @@ else:
                     use_container_width=True
                 )
 
-            # Pagination
-            items_per_page_rec = 50
-            total_pages_rec = math.ceil(len(full_medical_records_df) / items_per_page_rec) if len(full_medical_records_df) > 0 else 1
-            page_rec = st.sidebar.number_input("Record Page", min_value=1, max_value=total_pages_rec, step=1)
-            df_page_rec = full_medical_records_df.iloc[(page_rec - 1) * items_per_page_rec : page_rec * items_per_page_rec].copy()
-
-            # Initialize session state for editing medical records
-            if 'editing_record_id' not in st.session_state:
-                st.session_state.editing_record_id = None
-
             st.write("---")
-            # Adjust column width for actions if 'Actions' is selected
-            rec_col_widths = [0.5] + [2 for _ in selected_rec_cols if _ != "Actions"]
-            if "Actions" in selected_rec_cols:
-                rec_col_widths.append(3) # Give more space for buttons
-            header_rec_cols = st.columns(rec_col_widths)
 
-            select_all_rec = header_rec_cols[0].checkbox("All Records", key="master_check_records")
+            # Display DataFrame with selection capabilities
+            edited_records_df = st.dataframe(
+                full_medical_records_df,
+                column_order=["patient_name", "patient_contact", "visit_date", "Probability_Display", "Target",
+                              "Age", "Gender_Display", "ChestPainType_Display", "RestingBloodPressure",
+                              "Cholesterol", "FastingBloodSugar", "RestECG_Display", "MaxHeartRate",
+                              "ExerciseInducedAngina", "ST_Depression", "ST_Slope_Display", "MajorVessels",
+                              "Thalassemia_Display", "id", "patient_id"],
+                column_config={
+                    "id": st.column_config.Column("Record ID", disabled=True),
+                    "patient_id": st.column_config.Column(disabled=True),
+                    "Gender": st.column_config.Column(disabled=True, width="hidden"), # Hide original numeric gender
+                    "ChestPainType": st.column_config.Column(disabled=True, width="hidden"),
+                    "RestECG": st.column_config.Column(disabled=True, width="hidden"),
+                    "ST_Slope": st.column_config.Column(disabled=True, width="hidden"),
+                    "Thalassemia": st.column_config.Column(disabled=True, width="hidden"),
+                    "Probability": st.column_config.Column(disabled=True, width="hidden"), # Hide original numeric probability
+                    "Gender_Display": st.column_config.Column("Gender"),
+                    "ChestPainType_Display": st.column_config.Column("Chest Pain Type"),
+                    "RestECG_Display": st.column_config.Column("Rest ECG"),
+                    "ST_Slope_Display": st.column_config.Column("ST Slope"),
+                    "Thalassemia_Display": st.column_config.Column("Thalassemia"),
+                    "Probability_Display": st.column_config.Column("Probability"),
+                    "Target": st.column_config.Column(disabled=True)
+                },
+                hide_index=True,
+                use_container_width=True,
+                on_select="rerun",
+                selection_mode="multi-row"
+            )
 
-            rec_col_idx = 1
-            for col_name in selected_rec_cols:
-                header_rec_cols[rec_col_idx].markdown(f"**{col_name}**")
-                rec_col_idx += 1
+            selected_record_indices = edited_records_df.selection.rows
+            selected_record_ids = full_medical_records_df.loc[selected_record_indices, 'id'].tolist()
 
-            selected_record_ids = []
+            # --- Action Buttons for Selected Records ---
+            st.write("---")
+            if selected_record_ids:
+                col_edit_rec_selected, col_delete_rec_selected, col_bulk_edit_rec_placeholder = st.columns(3)
 
-            # Reverse mappings for display in edit form
-            disp_gender_map = {1: "Male", 0: "Female"}
-            disp_cp_map = {0: "Typical Angina", 1: "Atypical Angina", 2: "Non-Anginal Pain", 3: "Asymptomatic"}
-            disp_restecg_map = {0: "Normal", 1: "ST-T Wave Abnormality", 2: "Left Ventricular Hypertrophy"}
-            disp_slope_map = {0: "Up", 1: "Flat", 2: "Down"}
-            disp_thal_map = {1: "Normal", 2: "Fixed Defect", 3: "Reversible Defect"}
+                if len(selected_record_ids) == 1:
+                    record_id_to_edit = selected_record_ids[0]
+                    rec_name = full_medical_records_df[full_medical_records_df['id'] == record_id_to_edit]['patient_name'].iloc[0]
+                    rec_date = full_medical_records_df[full_medical_records_df['id'] == record_id_to_edit]['visit_date'].iloc[0].strftime("%Y-%m-%d")
+                    if col_edit_rec_selected.button(f"Edit Record for {rec_name} ({rec_date})", key="edit_single_record_btn", use_container_width=True):
+                        st.session_state.editing_record_id = record_id_to_edit
+                        st.rerun()
+                    if col_delete_rec_selected.button(f"Delete Record for {rec_name} ({rec_date})", key="delete_single_record_btn", use_container_width=True):
+                        db.delete_medical_record(record_id_to_edit)
+                        st.success(f"Medical record for {rec_name} on {rec_date} deleted.")
+                        st.rerun()
+                elif len(selected_record_ids) > 1:
+                    if col_delete_rec_selected.button(f"Delete {len(selected_record_ids)} Selected Records", key="bulk_delete_records_btn", use_container_width=True):
+                        for rec_id in selected_record_ids:
+                            db.delete_medical_record(rec_id)
+                        st.success(f"Deleted {len(selected_record_ids)} medical records.")
+                        st.rerun()
+                    # Placeholder for bulk edit
+                    if col_bulk_edit_rec_placeholder.button(f"Bulk Update {len(selected_record_ids)} Records", key="bulk_edit_records_placeholder_btn", use_container_width=True):
+                        st.info("Bulk edit functionality for medical records will be added here. Please specify which fields you'd like to bulk update!")
 
-            for _, row_rec in df_page_rec.iterrows():
-                row_rec_cols = st.columns(rec_col_widths)
-                if row_rec_cols[0].checkbox("", value=select_all_rec, key=f"rec_select_{row_rec['id']}"):
-                    selected_record_ids.append(row_rec['id'])
 
-                rec_col_idx = 1
-                for col_name in selected_rec_cols:
-                    if col_name == "Actions":
-                        action_rec_col_edit, action_rec_col_delete = row_rec_cols[rec_col_idx].columns(2)
-                        if action_rec_col_edit.button("Edit", key=f"edit_record_{row_rec['id']}", use_container_width=True):
-                            st.session_state.editing_record_id = row_rec['id']
-                            st.rerun()
-                        if action_rec_col_delete.button("Delete", key=f"delete_record_{row_rec['id']}", use_container_width=True):
-                            db.delete_medical_record(row_rec['id'])
-                            st.success(f"Medical record for {row_rec['patient_name']} on {row_rec['visit_date']} deleted.")
-                            st.session_state.editing_record_id = None # Clear any active edit form
-                            st.rerun()
-                    elif col_name == "Probability":
-                         row_rec_cols[rec_col_idx].write(f"{row_rec[col_name]:.1f}%")
-                    elif col_name == "Gender":
-                         row_rec_cols[rec_col_idx].write(disp_gender_map.get(row_rec[col_name], "N/A"))
-                    elif col_name == "ChestPainType":
-                         row_rec_cols[rec_col_idx].write(disp_cp_map.get(row_rec[col_name], "N/A"))
-                    elif col_name == "RestECG":
-                         row_rec_cols[rec_col_idx].write(disp_restecg_map.get(row_rec[col_name], "N/A"))
-                    elif col_name == "ST_Slope":
-                         row_rec_cols[rec_col_idx].write(disp_slope_map.get(row_rec[col_name], "N/A"))
-                    elif col_name == "Thalassemia":
-                         row_rec_cols[rec_col_idx].write(disp_thal_map.get(row_rec[col_name], "N/A"))
-                    else:
-                        row_rec_cols[rec_col_idx].write(row_rec[col_name])
-                    rec_col_idx += 1
-
-            # --- Edit Medical Record Form ---
+            # --- Edit Medical Record Form (Expander) ---
             if st.session_state.editing_record_id is not None:
                 record_to_edit_df = full_medical_records_df[full_medical_records_df['id'] == st.session_state.editing_record_id]
                 if not record_to_edit_df.empty:
                     record_to_edit = record_to_edit_df.iloc[0]
 
-                    with st.expander(f"Edit Record for {record_to_edit['patient_name']} ({record_to_edit['visit_date']})", expanded=True):
+                    with st.expander(f"Edit Record for {record_to_edit['patient_name']} ({record_to_edit['visit_date'].strftime('%Y-%m-%d')})", expanded=True):
                         with st.form("edit_medical_record_form", clear_on_submit=False):
                             st.subheader("Clinical Metrics")
                             col_a_rec, col_b_rec = st.columns(2)
                             with col_a_rec:
-                                edit_age = st.number_input("Age", value=record_to_edit['Age'], min_value=1, max_value=120, key="edit_rec_age")
-                                edit_gender = st.selectbox("Gender", ["Male", "Female", "Other"], index=list(disp_gender_map.values()).index(disp_gender_map.get(record_to_edit['Gender'], "Male")), key="edit_rec_gender")
-                                edit_cp = st.selectbox("Chest Pain Type", ["Typical Angina", "Atypical Angina", "Non-Anginal Pain", "Asymptomatic"], index=list(disp_cp_map.values()).index(disp_cp_map.get(record_to_edit['ChestPainType'], "Typical Angina")), key="edit_rec_cp")
-                                edit_rbp = st.number_input("Resting Blood Pressure", value=record_to_edit['RestingBloodPressure'], key="edit_rec_rbp")
-                                edit_chol = st.number_input("Cholesterol", value=record_to_edit['Cholesterol'], key="edit_rec_chol")
-                                edit_fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl", [0, 1], index=record_to_edit['FastingBloodSugar'], key="edit_rec_fbs")
-                                edit_restecg = st.selectbox("Resting ECG", ["Normal", "ST-T Wave Abnormality", "Left Ventricular Hypertrophy"], index=list(disp_restecg_map.values()).index(disp_restecg_map.get(record_to_edit['RestECG'], "Normal")), key="edit_rec_restecg")
+                                edit_age = st.number_input("Age", value=int(record_to_edit['Age']), min_value=1, max_value=120, key="edit_rec_age")
+                                # Using original numeric values for index lookup
+                                edit_gender = st.selectbox("Gender", ["Male", "Female", "Other"], index=list(disp_gender_map.keys()).index(record_to_edit['Gender']), key="edit_rec_gender")
+                                edit_cp = st.selectbox("Chest Pain Type", ["Typical Angina", "Atypical Angina", "Non-Anginal Pain", "Asymptomatic"], index=list(disp_cp_map.keys()).index(record_to_edit['ChestPainType']), key="edit_rec_cp")
+                                edit_rbp = st.number_input("Resting Blood Pressure", value=int(record_to_edit['RestingBloodPressure']), key="edit_rec_rbp")
+                                edit_chol = st.number_input("Cholesterol", value=int(record_to_edit['Cholesterol']), key="edit_rec_chol")
+                                edit_fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl", [0, 1], index=int(record_to_edit['FastingBloodSugar']), key="edit_rec_fbs")
+                                edit_restecg = st.selectbox("Resting ECG", ["Normal", "ST-T Wave Abnormality", "Left Ventricular Hypertrophy"], index=list(disp_restecg_map.keys()).index(record_to_edit['RestECG']), key="edit_rec_restecg")
                             with col_b_rec:
-                                edit_mhr = st.number_input("Max Heart Rate", value=record_to_edit['MaxHeartRate'], key="edit_rec_mhr")
-                                edit_eia = st.selectbox("Exercise Induced Angina", [0, 1], index=record_to_edit['ExerciseInducedAngina'], key="edit_rec_eia")
-                                edit_st_depression = st.number_input("ST Depression", value=record_to_edit['ST_Depression'], key="edit_rec_stdep")
-                                edit_st_slope = st.selectbox("ST Slope", ["Up", "Flat", "Down"], index=list(disp_slope_map.values()).index(disp_slope_map.get(record_to_edit['ST_Slope'], "Up")), key="edit_rec_stslope")
-                                edit_major_vessels = st.number_input("Major Vessels (0-4)", min_value=0, max_value=4, value=record_to_edit['MajorVessels'], key="edit_rec_majves")
-                                edit_thal = st.selectbox("Thalassemia", ["Normal", "Fixed Defect", "Reversible Defect"], index=list(disp_thal_map.values()).index(disp_thal_map.get(record_to_edit['Thalassemia'], "Normal")), key="edit_rec_thal")
+                                edit_mhr = st.number_input("Max Heart Rate", value=int(record_to_edit['MaxHeartRate']), key="edit_rec_mhr")
+                                edit_eia = st.selectbox("Exercise Induced Angina", [0, 1], index=int(record_to_edit['ExerciseInducedAngina']), key="edit_rec_eia")
+                                edit_st_depression = st.number_input("ST Depression", value=float(record_to_edit['ST_Depression']), key="edit_rec_stdep")
+                                edit_st_slope = st.selectbox("ST Slope", ["Up", "Flat", "Down"], index=list(disp_slope_map.keys()).index(record_to_edit['ST_Slope']), key="edit_rec_stslope")
+                                edit_major_vessels = st.number_input("Major Vessels (0-4)", min_value=0, max_value=4, value=int(record_to_edit['MajorVessels']), key="edit_rec_majves")
+                                edit_thal = st.selectbox("Thalassemia", ["Normal", "Fixed Defect", "Reversible Defect"], index=list(disp_thal_map.keys()).index(record_to_edit['Thalassemia']), key="edit_rec_thal")
 
                             col_rec_submit, col_rec_cancel = st.columns(2)
                             with col_rec_submit:
@@ -519,7 +468,6 @@ else:
                                         "ST_Slope": slope_map.get(edit_st_slope), "MajorVessels": edit_major_vessels,
                                         "Thalassemia": thal_map.get(edit_thal, 0)
                                     }
-                                    # Re-run prediction with updated data to get new target/probability
                                     new_target, new_prob, new_cat, new_status = mh.predict_heart_risk(updated_input_data)
 
                                     if new_status == "Success":
@@ -535,16 +483,7 @@ else:
                                     st.session_state.editing_record_id = None
                                     st.rerun()
                 else:
-                    st.session_state.editing_record_id = None # Record not found, clear state
-
-            # --- Bulk Delete Records ---
-            st.write("---")
-            if selected_record_ids:
-                if st.button(f"Delete {len(selected_record_ids)} Selected Records", key="bulk_delete_records"):
-                    for rec_id in selected_record_ids:
-                        db.delete_medical_record(rec_id)
-                    st.success(f"Deleted {len(selected_record_ids)} medical records.")
-                    st.rerun()
+                    st.session_state.editing_record_id = None
 
         else:
             st.info("No medical records found for your patients.")
