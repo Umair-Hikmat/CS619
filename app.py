@@ -3,7 +3,7 @@
 # =========================================================
 
 import streamlit as st
-import database_helper as db
+import db.get_patients(user_id, patient_id) as db
 import auth
 import model_handler as mh
 import pandas as pd
