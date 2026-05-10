@@ -150,7 +150,7 @@ def get_all_medical_records_by_doctor(doctor_id):
 
         query = """
             SELECT 
-                r.id AS id,
+                r.id AS record_id,
                 r.patient_id,
                 r.Age,
                 r.Gender,
