@@ -637,7 +637,7 @@ else:
 
                             st.error(f"Prediction Error: {e}")
 
-    elif menu == "Medical Records":
+elif menu == "Medical Records":
 
     st.title("📋 Medical Records (All Patients)")
 
@@ -723,7 +723,9 @@ else:
 
     if st.session_state.editing_record_id is not None:
 
-        record_df = final_df[final_df["id"] == st.session_state.editing_record_id]
+        record_df = final_df[
+            final_df["id"] == st.session_state.editing_record_id
+        ]
 
         if not record_df.empty:
 
@@ -863,10 +865,11 @@ else:
                                 st.error(f"Update Error: {e}")
 
                     with c2:
+
                         if st.form_submit_button("Cancel"):
+
                             st.session_state.editing_record_id = None
                             st.rerun()
 
         else:
-
-            st.info("No medical records found.")
+            st.info("No medical record found.")
