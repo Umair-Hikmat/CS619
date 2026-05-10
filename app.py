@@ -88,7 +88,6 @@ else:
                 if prob_val < low_risk_threshold:
                     status_text = "🟢 Low Risk"
                 elif prob_val < moderate_risk_threshold:
-                    category = "Borderline / Moderate Risk"
                     status_text = "🟡 Borderline / Moderate Risk"
                 elif prob_val < high_risk_threshold:
                     status_text = "🟠 High Risk"
@@ -157,7 +156,7 @@ else:
                             file_name="all_patient_medical_records.csv",
                             mime="text/csv",
                             key="download_all_records",
-                            width='full'
+                            use_container_width=True
                         )
                     else:
                         st.info("No records to export for the filtered patients.")
@@ -190,21 +189,21 @@ else:
 
                 if len(selected_patient_ids) == 1:
                     patient_id_to_edit = selected_patient_ids[0]
-                    if col_edit_selected.button(f"Edit Patient {df[df['ID'] == patient_id_to_edit]['Name'].iloc[0]}", key="edit_single_patient_btn", width='full'):
+                    if col_edit_selected.button(f"Edit Patient {df[df['ID'] == patient_id_to_edit]['Name'].iloc[0]}", key="edit_single_patient_btn", use_container_width=True):
                         st.session_state.editing_patient_id = patient_id_to_edit
                         st.rerun()
-                    if col_delete_selected.button(f"Delete Patient {df[df['ID'] == patient_id_to_edit]['Name'].iloc[0]}", key="delete_single_patient_btn", width='full'):
+                    if col_delete_selected.button(f"Delete Patient {df[df['ID'] == patient_id_to_edit]['Name'].iloc[0]}", key="delete_single_patient_btn", use_container_width=True):
                         db.delete_patient(patient_id_to_edit)
                         st.success(f"Patient {df[df['ID'] == patient_id_to_edit]['Name'].iloc[0]} and all their records deleted.")
                         st.rerun()
                 elif len(selected_patient_ids) > 1:
-                    if col_delete_selected.button(f"Delete {len(selected_patient_ids)} Selected Patients", key="bulk_delete_patients_btn", width='full'):
+                    if col_delete_selected.button(f"Delete {len(selected_patient_ids)} Selected Patients", key="bulk_delete_patients_btn", use_container_width=True):
                         for p_id in selected_patient_ids:
                             db.delete_patient(p_id)
                         st.success(f"Deleted {len(selected_patient_ids)} patients.")
                         st.rerun()
                     # Placeholder for bulk edit
-                    if col_bulk_edit_placeholder.button(f"Bulk Update {len(selected_patient_ids)} Patients", key="bulk_edit_patients_placeholder_btn", width='full'):
+                    if col_bulk_edit_placeholder.button(f"Bulk Update {len(selected_patient_ids)} Patients", key="bulk_edit_patients_placeholder_btn", use_container_width=True):
                         st.info("Bulk edit functionality will be added here. Please specify which fields you'd like to bulk update!")
 
             # --- Edit Patient Form (Expander) ---
@@ -221,13 +220,13 @@ else:
 
                             col_edit_submit, col_edit_cancel = st.columns(2)
                             with col_edit_submit:
-                                if st.form_submit_button("Update Patient", width='full'):
+                                if st.form_submit_button("Update Patient"):
                                     db.update_patient(st.session_state.editing_patient_id, edit_name, edit_contact, edit_age)
                                     st.success("Patient updated successfully!")
                                     st.session_state.editing_patient_id = None
                                     st.rerun()
                             with col_edit_cancel:
-                                if st.form_submit_button("Cancel", width='full'):
+                                if st.form_submit_button("Cancel"):
                                     st.session_state.editing_patient_id = None
                                     st.rerun()
                 else:
@@ -280,7 +279,7 @@ else:
                 major_vessels = st.number_input("Major Vessels (0-4)", min_value=0, max_value=4)
                 thal = st.selectbox("Thalassemia", ["Normal", "Fixed Defect", "Reversible Defect"])
 
-            if st.form_submit_button("Run Analysis & Save", width='full'):
+            if st.form_submit_button("Run Analysis & Save"):
                 gender_map = {"Male": 1, "Female": 0}
                 cp_map = {"Typical Angina": 0, "Atypical Angina": 1, "Non-Anginal Pain": 2, "Asymptomatic": 3}
                 restecg_map = {"Normal": 0, "ST-T Wave Abnormality": 1, "Left Ventricular Hypertrophy": 2}
@@ -363,7 +362,7 @@ else:
                     file_name="filtered_medical_records.csv",
                     mime="text/csv",
                     key="download_filtered_records",
-                    width='full'
+                    use_container_width=True
                 )
 
             st.write("---")
@@ -411,21 +410,21 @@ else:
                     record_id_to_edit = selected_record_ids[0]
                     rec_name = full_medical_records_df[full_medical_records_df['id'] == record_id_to_edit]['patient_name'].iloc[0]
                     rec_date = full_medical_records_df[full_medical_records_df['id'] == record_id_to_edit]['visit_date'].iloc[0].strftime("%Y-%m-%d")
-                    if col_edit_rec_selected.button(f"Edit Record for {rec_name} ({rec_date})", key="edit_single_record_btn", width='full'):
+                    if col_edit_rec_selected.button(f"Edit Record for {rec_name} ({rec_date})", key="edit_single_record_btn", use_container_width=True):
                         st.session_state.editing_record_id = record_id_to_edit
                         st.rerun()
-                    if col_delete_rec_selected.button(f"Delete Record for {rec_name} ({rec_date})", key="delete_single_record_btn", width='full'):
+                    if col_delete_rec_selected.button(f"Delete Record for {rec_name} ({rec_date})", key="delete_single_record_btn", use_container_width=True):
                         db.delete_medical_record(record_id_to_edit)
                         st.success(f"Medical record for {rec_name} on {rec_date} deleted.")
                         st.rerun()
                 elif len(selected_record_ids) > 1:
-                    if col_delete_rec_selected.button(f"Delete {len(selected_record_ids)} Selected Records", key="bulk_delete_records_btn", width='full'):
+                    if col_delete_rec_selected.button(f"Delete {len(selected_record_ids)} Selected Records", key="bulk_delete_records_btn", use_container_width=True):
                         for rec_id in selected_record_ids:
                             db.delete_medical_record(rec_id)
                         st.success(f"Deleted {len(selected_record_ids)} medical records.")
                         st.rerun()
                     # Placeholder for bulk edit
-                    if col_bulk_edit_rec_placeholder.button(f"Bulk Update {len(selected_record_ids)} Records", key="bulk_edit_records_placeholder_btn", width='full'):
+                    if col_bulk_edit_rec_placeholder.button(f"Bulk Update {len(selected_record_ids)} Records", key="bulk_edit_records_placeholder_btn", use_container_width=True):
                         st.info("Bulk edit functionality for medical records will be added here. Please specify which fields you'd like to bulk update!")
 
 
@@ -441,55 +440,38 @@ else:
                             col_a_rec, col_b_rec = st.columns(2)
                             with col_a_rec:
                                 edit_age = st.number_input("Age", value=int(record_to_edit['Age']), min_value=1, max_value=120, key="edit_rec_age")
+                                # Using original numeric values for index lookup
+                                current_gender_str = disp_gender_map.get(record_to_edit['Gender'], "Female") # Default to Female if value not in map
+                                edit_gender = st.selectbox("Gender", ["Male", "Female"], index=["Male", "Female"].index(current_gender_str), key="edit_rec_gender")
 
-                                current_gender_value = record_to_edit['Gender']
-                                current_gender_str = disp_gender_map.get(current_gender_value)
-                                gender_options = ["Male", "Female"]
-                                initial_gender_index = gender_options.index(current_gender_str) if current_gender_str in gender_options else 0
-                                edit_gender = st.selectbox("Gender", gender_options, index=initial_gender_index, key="edit_rec_gender")
-
-                                current_cp_value = record_to_edit['ChestPainType']
-                                current_cp_str = disp_cp_map.get(current_cp_value)
-                                cp_options = ["Typical Angina", "Atypical Angina", "Non-Anginal Pain", "Asymptomatic"]
-                                initial_cp_index = cp_options.index(current_cp_str) if current_cp_str in cp_options else 0
-                                edit_cp = st.selectbox("Chest Pain Type", cp_options, index=initial_cp_index, key="edit_rec_cp")
+                                current_cp_str = disp_cp_map.get(record_to_edit['ChestPainType'])
+                                edit_cp = st.selectbox("Chest Pain Type", ["Typical Angina", "Atypical Angina", "Non-Anginal Pain", "Asymptomatic"], index=["Typical Angina", "Atypical Angina", "Non-Anginal Pain", "Asymptomatic"].index(current_cp_str), key="edit_rec_cp")
 
                                 edit_rbp = st.number_input("Resting Blood Pressure", value=int(record_to_edit['RestingBloodPressure']), key="edit_rec_rbp")
                                 edit_chol = st.number_input("Cholesterol", value=int(record_to_edit['Cholesterol']), key="edit_rec_chol")
 
-                                edit_fbs_value = record_to_edit['FastingBloodSugar']
-                                initial_fbs_index = int(edit_fbs_value) if pd.notna(edit_fbs_value) else 0
-                                edit_fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl", [0, 1], index=initial_fbs_index, key="edit_rec_fbs")
+                                edit_fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl", [0, 1], index=int(record_to_edit['FastingBloodSugar']), key="edit_rec_fbs")
 
-                                current_restecg_value = record_to_edit['RestECG']
-                                current_restecg_str = disp_restecg_map.get(current_restecg_value)
-                                restecg_options = ["Normal", "ST-T Wave Abnormality", "Left Ventricular Hypertrophy"]
-                                initial_restecg_index = restecg_options.index(current_restecg_str) if current_restecg_str in restecg_options else 0
-                                edit_restecg = st.selectbox("Resting ECG", restecg_options, index=initial_restecg_index, key="edit_rec_restecg")
+                                current_restecg_str = disp_restecg_map.get(record_to_edit['RestECG'])
+                                edit_restecg = st.selectbox("Resting ECG", ["Normal", "ST-T Wave Abnormality", "Left Ventricular Hypertrophy"], index=["Normal", "ST-T Wave Abnormality", "Left Ventricular Hypertrophy"].index(current_restecg_str), key="edit_rec_restecg")
                             with col_b_rec:
                                 edit_mhr = st.number_input("Max Heart Rate", value=int(record_to_edit['MaxHeartRate']), key="edit_rec_mhr")
                                 edit_eia = st.selectbox("Exercise Induced Angina", [0, 1], index=int(record_to_edit['ExerciseInducedAngina']), key="edit_rec_eia")
                                 edit_st_depression = st.number_input("ST Depression", value=float(record_to_edit['ST_Depression']), key="edit_rec_stdep")
 
-                                current_st_slope_value = record_to_edit['ST_Slope']
-                                current_st_slope_str = disp_slope_map.get(current_st_slope_value)
-                                slope_options = ["Up", "Flat", "Down"]
-                                initial_slope_index = slope_options.index(current_st_slope_str) if current_st_slope_str in slope_options else 0
-                                edit_st_slope = st.selectbox("ST Slope", slope_options, index=initial_slope_index, key="edit_rec_stslope")
+                                current_st_slope_str = disp_slope_map.get(record_to_edit['ST_Slope'])
+                                edit_st_slope = st.selectbox("ST Slope", ["Up", "Flat", "Down"], index=["Up", "Flat", "Down"].index(current_st_slope_str), key="edit_rec_stslope")
 
                                 edit_major_vessels = st.number_input("Major Vessels (0-4)", min_value=0, max_value=4, value=int(record_to_edit['MajorVessels']), key="edit_rec_majves")
 
-                                current_thal_value = record_to_edit['Thalassemia']
-                                current_thal_str = disp_thal_map.get(current_thal_value)
-                                thal_options = ["Normal", "Fixed Defect", "Reversible Defect"]
-                                initial_thal_index = thal_options.index(current_thal_str) if current_thal_str in thal_options else 0
-                                edit_thal = st.selectbox("Thalassemia", thal_options, index=initial_thal_index, key="edit_rec_thal")
+                                current_thal_str = disp_thal_map.get(record_to_edit['Thalassemia'])
+                                edit_thal = st.selectbox("Thalassemia", ["Normal", "Fixed Defect", "Reversible Defect"], index=["Normal", "Fixed Defect", "Reversible Defect"].index(current_thal_str), key="edit_rec_thal")
 
                             col_rec_submit, col_rec_cancel = st.columns(2)
 
                             # Place submit buttons directly within the form context
                             with col_rec_submit:
-                                if st.form_submit_button("Update Record", width='full'):
+                                if st.form_submit_button("Update Record"):
                                     gender_map = {"Male": 1, "Female": 0}
                                     cp_map = {"Typical Angina": 0, "Atypical Angina": 1, "Non-Anginal Pain": 2, "Asymptomatic": 3}
                                     restecg_map = {"Normal": 0, "ST-T Wave Abnormality": 1, "Left Ventricular Hypertrophy": 2}
@@ -517,7 +499,7 @@ else:
 
                             with col_rec_cancel:
                                 # A regular button is used for cancel, it does not need to be a form_submit_button
-                                if st.button("Cancel Edit", key="cancel_edit_rec_button", width='full'):
+                                if st.button("Cancel Edit", key="cancel_edit_rec_button"):
                                     st.session_state.editing_record_id = None
                                     st.rerun()
                 else:
