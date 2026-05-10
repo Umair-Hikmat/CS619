@@ -9,6 +9,10 @@ import model_handler as mh
 import pandas as pd
 from datetime import datetime
 import pytz
+import importlib
+
+# Reload the database_helper module to ensure latest changes are picked up
+importlib.reload(db)
 
 # =========================================================
 # PAGE CONFIG
