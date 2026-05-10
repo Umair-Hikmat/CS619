@@ -735,7 +735,7 @@ else:
         else:
             st.warning("Record ID not available in dataset")
 
-        doctor_id=st.session_state.user_name
+        doctor_id=st.session_state.user_id
         records_df = db.get_all_medical_records_by_doctor(doctor_id)
         
         if not records_df.empty:
