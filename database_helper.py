@@ -143,3 +143,35 @@ def update_medical_record(record_id, data_dict, target, prob):
 def delete_medical_record(record_id):
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute("DELETE FROM records WHERE id=?", (record_id,))
+
+def create_medical_record(patient_id, data_dict, target, prob):
+
+    with sqlite3.connect(DB_NAME) as conn:
+
+        vals = list(data_dict.values())
+
+        query = """
+            INSERT INTO records (
+                patient_id,
+                Age,
+                Gender,
+                ChestPainType,
+                RestingBloodPressure,
+                Cholesterol,
+                FastingBloodSugar,
+                RestECG,
+                MaxHeartRate,
+                ExerciseInducedAngina,
+                ST_Depression,
+                ST_Slope,
+                MajorVessels,
+                Thalassemia,
+                Target,
+                Probability,
+                visit_date
+            )
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+        """
+
+        conn.execute(query, [patient_id] + vals + [target, prob])
+        conn.commit()
