@@ -641,7 +641,7 @@ else:
     # MEDICAL RECORDS (FIXED & OPTIMIZED)
     # =====================================================
     
-        elif menu == "Medical Records":
+    elif menu == "Medical Records":
     
         st.title("📋 Medical Records")
     
