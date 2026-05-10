@@ -25,7 +25,7 @@ def predict_heart_risk(input_data, threshold=0.45):
 
         # 3. Generate Probability
         prob = float(model.predict(processed_data, verbose=0)[0][0])
-        percentage = round(prob * 100, 2)
+        percentage = round(prob, 4)
 
         # 4. Determine Target based on clinical threshold
         target = 1 if prob >= threshold else 0
