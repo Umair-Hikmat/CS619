@@ -719,8 +719,13 @@ else:
         # -------------------------------------------------
         # STEP 8: Select record
         # -------------------------------------------------
-        record_ids = all_records["id"].tolist()
-    
+        if "record_id" not in all_records.columns:
+            st.error("Missing record_id column")
+            st.write(all_records.columns)
+            st.stop()
+        
+        record_ids = all_records["record_id"].tolist()    
+
         selected_record = st.selectbox(
             "Select Medical Record",
             record_ids,
