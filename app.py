@@ -638,7 +638,7 @@ else:
                             st.error(f"Prediction Error: {e}")
 
     # =====================================================
-    # MEDICAL RECORDS
+    # MEDICAL RECORDS (FIXED & OPTIMIZED)
     # =====================================================
     
     elif menu == "Medical Records":
@@ -646,235 +646,168 @@ else:
         st.title("📋 Medical Records")
     
         # -------------------------------------------------
-        # STEP 1: Fetch ALL records of this doctor
+        # STEP 1: Fetch records directly by doctor
         # -------------------------------------------------
         all_records = db.get_all_medical_records_by_doctor(
             st.session_state.user_id
         )
     
-        if all_records is not None and not all_records.empty:
+        # -------------------------------------------------
+        # STEP 2: Handle empty case
+        # -------------------------------------------------
+        if all_records is None or all_records.empty:
+            st.info("No medical records found.")
+            st.stop()
     
-            # -------------------------------------------------
-            # STEP 2: Merge patient info (name, contact)
-            # -------------------------------------------------
-            patients_df = db.get_patients(st.session_state.user_id)
+        # -------------------------------------------------
+        # STEP 3: Safety check (prevents KeyError crash)
+        # -------------------------------------------------
+        if "id" not in all_records.columns:
+            st.error("Database error: 'id' column missing in medical records")
+            st.write(all_records.columns)
+            st.stop()
     
-            all_records = all_records.merge(
-                patients_df[["id", "name", "contact_no"]],
-                left_on="patient_id",
-                right_on="id",
-                how="left"
-            )
+        # -------------------------------------------------
+        # STEP 4: Get patient details
+        # -------------------------------------------------
+        patients_df = db.get_patients(st.session_state.user_id)
     
-            all_records.rename(columns={
-                "name": "Patient",
-                "contact_no": "Contact"
-            }, inplace=True)
+        all_records = all_records.merge(
+            patients_df[["id", "name", "contact_no"]],
+            left_on="patient_id",
+            right_on="id",
+            how="left"
+        )
     
-            # -------------------------------------------------
-            # STEP 3: Decode categorical values
-            # -------------------------------------------------
-            all_records["Gender"] = all_records["Gender"].map(REV_GENDER_MAP)
-            all_records["ChestPainType"] = all_records["ChestPainType"].map(REV_CP_MAP)
-            all_records["RestECG"] = all_records["RestECG"].map(REV_RESTECG_MAP)
-            all_records["ST_Slope"] = all_records["ST_Slope"].map(REV_SLOPE_MAP)
-            all_records["Thalassemia"] = all_records["Thalassemia"].map(REV_THAL_MAP)
+        all_records.rename(columns={
+            "name": "Patient",
+            "contact_no": "Contact"
+        }, inplace=True)
     
-            all_records["Probability"] = all_records["Probability"].apply(
-                lambda x: f"{x * 100:.1f}%"
-            )
+        # -------------------------------------------------
+        # STEP 5: Decode values
+        # -------------------------------------------------
+        all_records["Gender"] = all_records["Gender"].map(REV_GENDER_MAP)
+        all_records["ChestPainType"] = all_records["ChestPainType"].map(REV_CP_MAP)
+        all_records["RestECG"] = all_records["RestECG"].map(REV_RESTECG_MAP)
+        all_records["ST_Slope"] = all_records["ST_Slope"].map(REV_SLOPE_MAP)
+        all_records["Thalassemia"] = all_records["Thalassemia"].map(REV_THAL_MAP)
     
-            # -------------------------------------------------
-            # STEP 4: Sort by latest visit
-            # -------------------------------------------------
-            all_records = all_records.sort_values(
-                by="visit_date",
-                ascending=False
-            )
+        all_records["Probability"] = all_records["Probability"].apply(
+            lambda x: f"{x * 100:.1f}%"
+        )
     
-            # -------------------------------------------------
-            # STEP 5: Show table
-            # -------------------------------------------------
-            st.dataframe(
-                all_records,
-                use_container_width=True,
-                hide_index=True
-            )
+        # -------------------------------------------------
+        # STEP 6: Sort latest first
+        # -------------------------------------------------
+        all_records = all_records.sort_values(
+            by="visit_date",
+            ascending=False
+        )
     
-            st.write("---")
+        # -------------------------------------------------
+        # STEP 7: Show table
+        # -------------------------------------------------
+        st.dataframe(
+            all_records,
+            use_container_width=True,
+            hide_index=True
+        )
     
-            # -------------------------------------------------
-            # STEP 6: Select record
-            # -------------------------------------------------
-            record_ids = all_records["id"].tolist()
+        st.write("---")
     
-            selected_record = st.selectbox(
-                "Select Medical Record",
-                record_ids,
-                format_func=lambda x: f"Record #{x}"
-            )
+        # -------------------------------------------------
+        # STEP 8: Select record
+        # -------------------------------------------------
+        record_ids = all_records["id"].tolist()
     
-            # -------------------------------------------------
-            # STEP 7: Actions
-            # -------------------------------------------------
-            c1, c2 = st.columns(2)
+        selected_record = st.selectbox(
+            "Select Medical Record",
+            record_ids,
+            format_func=lambda x: f"Record #{x}"
+        )
     
-            with c1:
-                if st.button("✏ Edit Record"):
-                    st.session_state.editing_record_id = selected_record
+        # -------------------------------------------------
+        # STEP 9: Actions
+        # -------------------------------------------------
+        c1, c2 = st.columns(2)
     
-            with c2:
-                if st.button("🗑 Delete Record"):
+        with c1:
+            if st.button("✏ Edit Record"):
+                st.session_state.editing_record_id = selected_record
     
-                    db.delete_medical_record(selected_record)
+        with c2:
+            if st.button("🗑 Delete Record"):
     
-                    st.success("Medical record deleted")
-                    st.rerun()
+                db.delete_medical_record(selected_record)
     
-            # =================================================
-            # EDIT RECORD SECTION
-            # =================================================
-            if st.session_state.get("editing_record_id") is not None:
+                st.success("Medical record deleted")
+                st.rerun()
     
-                rec = all_records[
-                    all_records["id"] == st.session_state.editing_record_id
-                ].iloc[0]
+        # =================================================
+        # STEP 10: EDIT RECORD SECTION
+        # =================================================
+        if st.session_state.get("editing_record_id"):
     
-                with st.expander(
-                    f"Edit Record #{rec['id']}",
-                    expanded=True
-                ):
+            rec = all_records[
+                all_records["id"] == st.session_state.editing_record_id
+            ].iloc[0]
     
-                    with st.form("edit_record_form"):
+            with st.expander(f"Edit Record #{rec['id']}", expanded=True):
     
-                        st.subheader("Clinical Metrics")
+                with st.form("edit_record_form"):
     
-                        col1, col2 = st.columns(2)
+                    col1, col2 = st.columns(2)
     
-                        with col1:
+                    with col1:
     
-                            edit_age = st.number_input(
-                                "Age",
-                                value=int(rec["Age"]),
-                                min_value=1,
-                                max_value=120
-                            )
+                        edit_age = st.number_input("Age", value=int(rec["Age"]))
+                        edit_gender = st.selectbox("Gender", list(GENDER_MAP.keys()), index=int(rec["Gender"]))
+                        edit_cp = st.selectbox("Chest Pain Type", list(CP_MAP.keys()), index=int(rec["ChestPainType"]))
+                        edit_rbp = st.number_input("Blood Pressure", value=int(rec["RestingBloodPressure"]))
+                        edit_chol = st.number_input("Cholesterol", value=int(rec["Cholesterol"]))
+                        edit_fbs = st.selectbox("FBS", [0, 1], index=int(rec["FastingBloodSugar"]))
+                        edit_restecg = st.selectbox("Rest ECG", list(RESTECG_MAP.keys()), index=int(rec["RestECG"]))
     
-                            edit_gender = st.selectbox(
-                                "Gender",
-                                list(GENDER_MAP.keys()),
-                                index=int(rec["Gender"])
-                            )
+                    with col2:
     
-                            edit_cp = st.selectbox(
-                                "Chest Pain Type",
-                                list(CP_MAP.keys()),
-                                index=int(rec["ChestPainType"])
-                            )
+                        edit_mhr = st.number_input("Max Heart Rate", value=int(rec["MaxHeartRate"]))
+                        edit_eia = st.selectbox("Angina", [0, 1], index=int(rec["ExerciseInducedAngina"]))
+                        edit_st_dep = st.number_input("ST Depression", value=float(rec["ST_Depression"]))
+                        edit_slope = st.selectbox("ST Slope", list(SLOPE_MAP.keys()), index=int(rec["ST_Slope"]))
+                        edit_vessels = st.number_input("Vessels", value=int(rec["MajorVessels"]))
+                        edit_thal = st.selectbox("Thalassemia", list(THAL_MAP.keys()), index=int(rec["Thalassemia"]))
     
-                            edit_rbp = st.number_input(
-                                "Resting Blood Pressure",
-                                value=int(rec["RestingBloodPressure"])
-                            )
+                    if st.form_submit_button("Update Record"):
     
-                            edit_chol = st.number_input(
-                                "Cholesterol",
-                                value=int(rec["Cholesterol"])
-                            )
+                        updated_data = {
+                            "Age": edit_age,
+                            "Gender": GENDER_MAP[edit_gender],
+                            "ChestPainType": CP_MAP[edit_cp],
+                            "RestingBloodPressure": edit_rbp,
+                            "Cholesterol": edit_chol,
+                            "FastingBloodSugar": edit_fbs,
+                            "RestECG": RESTECG_MAP[edit_restecg],
+                            "MaxHeartRate": edit_mhr,
+                            "ExerciseInducedAngina": edit_eia,
+                            "ST_Depression": edit_st_dep,
+                            "ST_Slope": SLOPE_MAP[edit_slope],
+                            "MajorVessels": edit_vessels,
+                            "Thalassemia": THAL_MAP[edit_thal]
+                        }
     
-                            edit_fbs = st.selectbox(
-                                "Fasting Blood Sugar > 120",
-                                [0, 1],
-                                index=int(rec["FastingBloodSugar"])
-                            )
+                        target, prob, cat, status = mh.predict_heart_risk(updated_data)
     
-                            edit_restecg = st.selectbox(
-                                "Rest ECG",
-                                list(RESTECG_MAP.keys()),
-                                index=int(rec["RestECG"])
-                            )
+                        db.update_medical_record(
+                            st.session_state.editing_record_id,
+                            updated_data,
+                            target,
+                            prob
+                        )
     
-                        with col2:
-    
-                            edit_mhr = st.number_input(
-                                "Max Heart Rate",
-                                value=int(rec["MaxHeartRate"])
-                            )
-    
-                            edit_eia = st.selectbox(
-                                "Exercise Induced Angina",
-                                [0, 1],
-                                index=int(rec["ExerciseInducedAngina"])
-                            )
-    
-                            edit_st_dep = st.number_input(
-                                "ST Depression",
-                                value=float(rec["ST_Depression"])
-                            )
-    
-                            edit_slope = st.selectbox(
-                                "ST Slope",
-                                list(SLOPE_MAP.keys()),
-                                index=int(rec["ST_Slope"])
-                            )
-    
-                            edit_vessels = st.number_input(
-                                "Major Vessels",
-                                value=int(rec["MajorVessels"])
-                            )
-    
-                            edit_thal = st.selectbox(
-                                "Thalassemia",
-                                list(THAL_MAP.keys()),
-                                index=int(rec["Thalassemia"])
-                            )
-    
-                        c1, c2 = st.columns(2)
-    
-                        with c1:
-                            if st.form_submit_button("Update Record"):
-    
-                                updated_data = {
-                                    "Age": edit_age,
-                                    "Gender": GENDER_MAP[edit_gender],
-                                    "ChestPainType": CP_MAP[edit_cp],
-                                    "RestingBloodPressure": edit_rbp,
-                                    "Cholesterol": edit_chol,
-                                    "FastingBloodSugar": edit_fbs,
-                                    "RestECG": RESTECG_MAP[edit_restecg],
-                                    "MaxHeartRate": edit_mhr,
-                                    "ExerciseInducedAngina": edit_eia,
-                                    "ST_Depression": edit_st_dep,
-                                    "ST_Slope": SLOPE_MAP[edit_slope],
-                                    "MajorVessels": edit_vessels,
-                                    "Thalassemia": THAL_MAP[edit_thal]
-                                }
-    
-                                try:
-    
-                                    target, prob, cat, status = mh.predict_heart_risk(
-                                        updated_data
-                                    )
-    
-                                    db.update_medical_record(
-                                        st.session_state.editing_record_id,
-                                        updated_data,
-                                        target,
-                                        prob
-                                    )
-    
-                                    st.success("Record updated successfully")
-    
-                                    st.session_state.editing_record_id = None
-                                    st.rerun()
-    
-                                except Exception as e:
-                                    st.error(f"Update Error: {e}")
-    
-                        with c2:
-                            if st.form_submit_button("Cancel"):
-                                st.session_state.editing_record_id = None
-                                st.rerun()
+                        st.success("Record updated successfully")
+                        st.session_state.editing_record_id = None
+                        st.rerun()
     
         else:
             st.info("No medical records found.")
