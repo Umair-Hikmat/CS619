@@ -219,7 +219,8 @@ def get_all_medical_records_by_doctor(doctor_id):
     with sqlite3.connect(DB_NAME) as conn:
 
         query = """
-            SELECT r.*
+            SELECT 
+                r.*
             FROM records r
             JOIN patients p ON r.patient_id = p.id
             WHERE p.doc_id = ?
@@ -227,5 +228,4 @@ def get_all_medical_records_by_doctor(doctor_id):
         """
 
         df = pd.read_sql(query, conn, params=(doctor_id,))
-
         return df
