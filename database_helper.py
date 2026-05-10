@@ -143,36 +143,3 @@ def update_medical_record(record_id, data_dict, target, prob):
 def delete_medical_record(record_id):
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute("DELETE FROM records WHERE id=?", (record_id,))
-
-def get_all_medical_records_by_doctor(doctor_id):
-
-    with sqlite3.connect(DB_NAME) as conn:
-
-        query = """
-            SELECT 
-                r.id AS record_id,
-                r.patient_id,
-                r.Age,
-                r.Gender,
-                r.ChestPainType,
-                r.RestingBloodPressure,
-                r.Cholesterol,
-                r.FastingBloodSugar,
-                r.RestECG,
-                r.MaxHeartRate,
-                r.ExerciseInducedAngina,
-                r.ST_Depression,
-                r.ST_Slope,
-                r.MajorVessels,
-                r.Thalassemia,
-                r.Probability,
-                r.visit_date
-            FROM records r
-            INNER JOIN patients p 
-                ON r.patient_id = p.id
-            WHERE p.doc_id = ?
-        """
-
-        df = pd.read_sql(query, conn, params=(doctor_id,))
-
-    return df
