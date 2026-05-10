@@ -599,7 +599,7 @@ else:
         # =====================================================
         # MEDICAL RECORDS
         # =====================================================
-      elif menu == "Medical Records":
+    elif menu == "Medical Records":
     
         st.title("📋 Medical Records")
     
