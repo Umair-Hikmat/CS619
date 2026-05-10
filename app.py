@@ -734,3 +734,17 @@ else:
     
         else:
             st.warning("Record ID not available in dataset")
+        records_df = db.get_records(patient_id)
+        
+        if not records_df.empty:
+        
+            # Optional: format probability
+            if "Probability" in records_df.columns:
+                records_df["Probability"] = records_df["Probability"].apply(
+                    lambda x: f"{x * 100:.1f}%"
+                )
+        
+            st.dataframe(records_df, use_container_width=True, hide_index=True)
+        
+        else:
+            st.warning("No medical records found.")
