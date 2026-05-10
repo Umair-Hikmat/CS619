@@ -144,34 +144,35 @@ def delete_medical_record(record_id):
     with sqlite3.connect(DB_NAME) as conn:
         conn.execute("DELETE FROM records WHERE id=?", (record_id,))
 
-def create_medical_record(patient_id, data_dict, target, prob):
+def get_all_medical_records_by_doctor(doctor_id):
 
     with sqlite3.connect(DB_NAME) as conn:
 
-        vals = list(data_dict.values())
-
         query = """
-            INSERT INTO records (
-                patient_id,
-                Age,
-                Gender,
-                ChestPainType,
-                RestingBloodPressure,
-                Cholesterol,
-                FastingBloodSugar,
-                RestECG,
-                MaxHeartRate,
-                ExerciseInducedAngina,
-                ST_Depression,
-                ST_Slope,
-                MajorVessels,
-                Thalassemia,
-                Target,
-                Probability,
-                visit_date
-            )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+            SELECT 
+                r.id AS record_id,
+                r.patient_id,
+                r.Age,
+                r.Gender,
+                r.ChestPainType,
+                r.RestingBloodPressure,
+                r.Cholesterol,
+                r.FastingBloodSugar,
+                r.RestECG,
+                r.MaxHeartRate,
+                r.ExerciseInducedAngina,
+                r.ST_Depression,
+                r.ST_Slope,
+                r.MajorVessels,
+                r.Thalassemia,
+                r.Probability,
+                r.visit_date
+            FROM records r
+            INNER JOIN patients p 
+                ON r.patient_id = p.id
+            WHERE p.doc_id = ?
         """
 
-        conn.execute(query, [patient_id] + vals + [target, prob])
-        conn.commit()
+        df = pd.read_sql(query, conn, params=(doctor_id,))
+
+    return df
