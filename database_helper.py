@@ -214,24 +214,4 @@ def delete_medical_record(record_id):
 # 🔥 IMPORTANT FIX: GET ALL DOCTOR RECORDS
 # =========================================================
 
-def get_all_doctor_records(doc_id):
-    """
-    Returns ALL medical records for ALL patients of a doctor.
-    FIXES: missing multiple records per patient issue.
-    """
 
-    with sqlite3.connect(DB_NAME) as conn:
-
-        query = """
-        SELECT
-            r.*,
-            p.name AS Patient,
-            p.contact_no AS Contact,
-            p.doc_id
-        FROM records r
-        JOIN patients p ON r.patient_id = p.id
-        WHERE p.doc_id = ?
-        ORDER BY r.visit_date DESC
-        """
-
-        return pd.read_sql(query, conn, params=(doc_id,))
