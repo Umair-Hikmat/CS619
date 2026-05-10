@@ -150,7 +150,7 @@ def get_all_medical_records_by_doctor(doctor_id):
 
         query = """
             SELECT 
-                r.id AS record_id,
+                r.id AS id,
                 r.patient_id,
                 r.Age,
                 r.Gender,
@@ -168,7 +168,8 @@ def get_all_medical_records_by_doctor(doctor_id):
                 r.Probability,
                 r.visit_date
             FROM records r
-            INNER JOIN patients p ON r.patient_id = p.id
+            INNER JOIN patients p 
+                ON r.patient_id = p.id
             WHERE p.doc_id = ?
         """
 
