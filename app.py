@@ -3,7 +3,7 @@
 # =========================================================
 
 import streamlit as st
-import database as db
+import database_helper as db
 import auth
 import model_handler as mh
 import pandas as pd
