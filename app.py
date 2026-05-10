@@ -617,6 +617,16 @@ else:
                                     target,
                                     prob
                                 )
+                                
+                                # ================================
+                                # VERIFY INSERT (IMPORTANT DEBUG)
+                                # ================================
+                                latest_record = db.get_records(p_id)
+                                
+                                st.success("Medical record saved successfully ✔")
+                                
+                                st.write("🔎 Latest DB Record:")
+                                st.dataframe(latest_record.head(1))
 
                                 st.success(
                                     f"""
