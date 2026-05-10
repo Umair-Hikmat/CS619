@@ -740,103 +740,190 @@ else:
                     st.rerun()
 
             # =============================================
-            # EDIT RECORD
-            # =============================================
+# EDIT RECORD
+# =============================================
 
-            if st.session_state.editing_record_id is not None:
+if st.session_state.editing_record_id is not None:
 
-                record_df = final_df[
-                    final_df["id"] ==
-                    st.session_state.editing_record_id
-                ]
+    original_record_df = None
 
-                if not record_df.empty:
+    # Reload original raw DB record
+    for _, patient in patients_df.iterrows():
 
-                    rec = record_df.iloc[0]
+        temp_df = db.get_records(patient["id"])
 
-                    with st.expander(
-                        f"Edit Record #{rec['id']}",
-                        expanded=True
+        if not temp_df.empty:
+
+            match = temp_df[
+                temp_df["id"] ==
+                st.session_state.editing_record_id
+            ]
+
+            if not match.empty:
+
+                original_record_df = match
+
+                break
+
+    if original_record_df is not None:
+
+        rec = original_record_df.iloc[0]
+
+        with st.expander(
+            f"Edit Record #{rec['id']}",
+            expanded=True
+        ):
+
+            with st.form("edit_record_form"):
+
+                st.subheader("Clinical Metrics")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    edit_age = st.number_input(
+                        "Age",
+                        value=int(rec["Age"]),
+                        min_value=1,
+                        max_value=120
+                    )
+
+                    edit_gender = st.selectbox(
+                        "Gender",
+                        list(GENDER_MAP.keys()),
+                        index=rec["Gender"]
+                    )
+
+                    edit_cp = st.selectbox(
+                        "Chest Pain Type",
+                        list(CP_MAP.keys()),
+                        index=rec["ChestPainType"]
+                    )
+
+                    edit_rbp = st.number_input(
+                        "Resting Blood Pressure",
+                        min_value=50,
+                        max_value=300,
+                        value=int(rec["RestingBloodPressure"])
+                    )
+
+                    edit_chol = st.number_input(
+                        "Cholesterol",
+                        min_value=50,
+                        max_value=700,
+                        value=int(rec["Cholesterol"])
+                    )
+
+                    edit_fbs = st.selectbox(
+                        "Fasting Blood Sugar > 120",
+                        [0, 1],
+                        index=int(rec["FastingBloodSugar"])
+                    )
+
+                    edit_restecg = st.selectbox(
+                        "Rest ECG",
+                        list(RESTECG_MAP.keys()),
+                        index=rec["RestECG"]
+                    )
+
+                with col2:
+
+                    edit_mhr = st.number_input(
+                        "Max Heart Rate",
+                        min_value=30,
+                        max_value=250,
+                        value=int(rec["MaxHeartRate"])
+                    )
+
+                    edit_eia = st.selectbox(
+                        "Exercise Induced Angina",
+                        [0, 1],
+                        index=int(rec["ExerciseInducedAngina"])
+                    )
+
+                    edit_st_dep = st.number_input(
+                        "ST Depression",
+                        value=float(rec["ST_Depression"])
+                    )
+
+                    edit_slope = st.selectbox(
+                        "ST Slope",
+                        list(SLOPE_MAP.keys()),
+                        index=rec["ST_Slope"]
+                    )
+
+                    edit_vessels = st.number_input(
+                        "Major Vessels",
+                        min_value=0,
+                        max_value=4,
+                        value=int(rec["MajorVessels"])
+                    )
+
+                    edit_thal = st.selectbox(
+                        "Thalassemia",
+                        list(THAL_MAP.keys()),
+                        index=max(rec["Thalassemia"] - 1, 0)
+                    )
+
+                c1, c2 = st.columns(2)
+
+                with c1:
+
+                    if st.form_submit_button(
+                        "Update Record"
                     ):
 
-                        with st.form("edit_record_form"):
+                        updated_data = {
+                            "Age": edit_age,
+                            "Gender": GENDER_MAP[edit_gender],
+                            "ChestPainType": CP_MAP[edit_cp],
+                            "RestingBloodPressure": edit_rbp,
+                            "Cholesterol": edit_chol,
+                            "FastingBloodSugar": edit_fbs,
+                            "RestECG": RESTECG_MAP[edit_restecg],
+                            "MaxHeartRate": edit_mhr,
+                            "ExerciseInducedAngina": edit_eia,
+                            "ST_Depression": edit_st_dep,
+                            "ST_Slope": SLOPE_MAP[edit_slope],
+                            "MajorVessels": edit_vessels,
+                            "Thalassemia": THAL_MAP[edit_thal]
+                        }
 
-                            edit_age = st.number_input(
-                                "Age",
-                                value=int(rec["Age"]),
-                                min_value=1,
-                                max_value=120
+                        try:
+
+                            target, prob, cat, status = mh.predict_heart_risk(
+                                updated_data
                             )
 
-                            edit_rbp = st.number_input(
-                                "Resting BP",
-                                value=int(
-                                    rec["RestingBloodPressure"]
-                                )
+                            db.update_medical_record(
+                                st.session_state.editing_record_id,
+                                updated_data,
+                                target,
+                                prob
                             )
 
-                            edit_chol = st.number_input(
-                                "Cholesterol",
-                                value=int(rec["Cholesterol"])
+                            st.success(
+                                "Medical record updated successfully"
                             )
 
-                            edit_mhr = st.number_input(
-                                "Max Heart Rate",
-                                value=int(rec["MaxHeartRate"])
-                            )
+                            st.session_state.editing_record_id = None
 
-                            col1, col2 = st.columns(2)
+                            st.rerun()
 
-                            with col1:
+                        except Exception as e:
 
-                                if st.form_submit_button(
-                                    "Update Record"
-                                ):
+                            st.error(f"Update Error: {e}")
 
-                                    updated_data = {
-                                        "Age": edit_age,
-                                        "Gender": GENDER_MAP[rec["Gender"]],
-                                        "ChestPainType": CP_MAP[rec["ChestPainType"]],
-                                        "RestingBloodPressure": edit_rbp,
-                                        "Cholesterol": edit_chol,
-                                        "FastingBloodSugar": rec["FastingBloodSugar"],
-                                        "RestECG": RESTECG_MAP[rec["RestECG"]],
-                                        "MaxHeartRate": edit_mhr,
-                                        "ExerciseInducedAngina": rec["ExerciseInducedAngina"],
-                                        "ST_Depression": rec["ST_Depression"],
-                                        "ST_Slope": SLOPE_MAP[rec["ST_Slope"]],
-                                        "MajorVessels": rec["MajorVessels"],
-                                        "Thalassemia": THAL_MAP[rec["Thalassemia"]],
-                                    }
+                with c2:
 
-                                    target, prob, cat, status = mh.predict_heart_risk(
-                                        updated_data
-                                    )
+                    if st.form_submit_button(
+                        "Cancel"
+                    ):
 
-                                    db.update_medical_record(
-                                        st.session_state.editing_record_id,
-                                        updated_data,
-                                        target,
-                                        prob
-                                    )
+                        st.session_state.editing_record_id = None
 
-                                    st.success(
-                                        "Medical record updated"
-                                    )
-
-                                    st.session_state.editing_record_id = None
-
-                                    st.rerun()
-
-                            with col2:
-
-                                if st.form_submit_button(
-                                    "Cancel"
-                                ):
-
-                                    st.session_state.editing_record_id = None
-
-                                    st.rerun()
+                        st.rerun()
 
         else:
 
